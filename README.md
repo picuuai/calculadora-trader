@@ -2,6 +2,8 @@
 
 Apuração mensal de IR sobre **day trade** (ações e mercado futuro) por CPF, com leitura de notas em PDF, fechamento mensal, relatório e DARF 6015.
 
+> **Importação de PDF:** no momento, funciona somente com notas/comprovantes de **mercado futuro (BM&F) da corretora Santander**. Para outras corretoras e para notas de ações, use o **lançamento manual**.
+
 - **Seus dados ficam só no seu computador.** O app é um conjunto de arquivos estáticos; não existe servidor, conta ou banco de dados on-line. Nada do que você lança é enviado para a internet.
 - **Funciona offline** depois de aberto uma vez.
 - **Instalável** (Chrome/Edge): vira um aplicativo com ícone e janela própria — sem instalador .exe.
