@@ -1,7 +1,7 @@
 // Service worker: guarda os arquivos do app para funcionar offline.
 // Os DADOS do usuário não passam por aqui (ficam no IndexedDB do navegador).
 // Ao publicar uma nova versão, altere CACHE_VERSION para os usuários receberem a atualização.
-var CACHE_VERSION='calculadora-trader-v7.2.0';
+var CACHE_VERSION='calculadora-trader-v7.2.1';
 var FILES=[
   './',
   'index.html',
@@ -26,8 +26,18 @@ var FILES=[
   'icons/icon-maskable-512.png'
 ];
 
+// Baixa cada arquivo direto do servidor (cache:'reload'), ignorando o cache HTTP
+// do navegador. Sem isso, uma atualização podia misturar arquivos da versão
+// anterior (o GitHub Pages manda o navegador guardar arquivos por 10 min).
 self.addEventListener('install',function(ev){
-  ev.waitUntil(caches.open(CACHE_VERSION).then(function(c){return c.addAll(FILES)}));
+  ev.waitUntil(caches.open(CACHE_VERSION).then(function(c){
+    return Promise.all(FILES.map(function(url){
+      return fetch(new Request(url,{cache:'reload'})).then(function(res){
+        if(!res.ok)throw new Error('Falha ao baixar '+url+' ('+res.status+')');
+        return c.put(url,res);
+      });
+    }));
+  }));
 });
 self.addEventListener('activate',function(ev){
   ev.waitUntil(caches.keys().then(function(keys){
