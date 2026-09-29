@@ -27,7 +27,7 @@ document.getElementById('irpf-report').addEventListener('click',function(){gerar
 
 function setTopStatus(t){var e=document.getElementById('v3-top-status');if(e)e.textContent=t}
 
-function render(){renderPeople();renderSelects();var L=ledger(activeEntries());renderCloseMonths(L);renderStats(L);renderIrrfAnnual(L);renderIssues();renderFilters();renderHistory();renderDueBanner()}
+function render(){renderPeople();renderSelects();var L=ledger(activeEntries());renderCloseMonths(L);renderStats(L);renderIrrfAnnual(L);renderIssues();renderFilters();renderHistory();renderDueBanner();renderCash()}
 function renderPeople(){
   var b=document.getElementById('people-body');
   b.innerHTML=st.people.length?st.people.map(function(p){
@@ -36,13 +36,14 @@ function renderPeople(){
       '<td>'+esc(p.name)+'</td>'+
       '<td>'+cpfFmt(p.cpf)+'</td>'+
       '<td>'+((p.accounts||[]).length?(p.accounts||[]).map(esc).join(', '):'—')+'</td>'+
+      '<td class="num">'+(personCashTotal(p.id)==null?'<span class="small">não informado</span>':brl(personCashTotal(p.id)))+'</td>'+
       '<td>'+
         (p.id===st.active?'<span class="badge ok">Ativo</span>':'<button class="ghost" data-use="'+p.id+'">Usar CPF</button>')+
         ' <button class="ghost" data-edit-person="'+p.id+'">Editar</button> '+
         (n?'<span class="small">'+n+' lançamento(s)</span>':'<button class="danger" data-rm="'+p.id+'">Remover</button>')+
       '</td>'+
     '</tr>';
-  }).join(''):'<tr><td colspan="4" class="small" style="text-align:center;padding:22px">Cadastre um contribuinte.</td></tr>';
+  }).join(''):'<tr><td colspan="5" class="small" style="text-align:center;padding:22px">Cadastre um contribuinte.</td></tr>';
 }
 function renderSelects(){
   var bar=document.getElementById('activebar'),
@@ -542,10 +543,10 @@ document.getElementById('people-body').addEventListener('click',function(ev){
   if(r){
     
     var pid=r.dataset.rm;
-    var used=st.entries.some(function(e){return e.personId===pid});
+    var used=st.entries.some(function(e){return e.personId===pid})||(st.cashMoves||[]).some(function(m){return m.personId===pid});
     if(used){
       document.getElementById('people-msg').className='status err';
-      document.getElementById('people-msg').textContent='Não é possível remover um contribuinte que possui lançamentos.';
+      document.getElementById('people-msg').textContent='Não é possível remover um contribuinte que possui lançamentos ou movimentos de conta.';
       return;
     }
     st.people=st.people.filter(function(p){return p.id!==pid});
@@ -827,7 +828,7 @@ var armed=false;document.getElementById('wipe').onclick=function(){
   if(!armed){armed=true;this.textContent='Confirmar exclusão?';var b=this;setTimeout(function(){armed=false;b.textContent='Apagar lançamentos'},4000);return}
   armed=false;this.textContent='Apagar lançamentos';
   backupBeforeChange('antes-apagar').then(function(){
-    st.entries=[];st.paid={};st.closed={};save();render();renderSnapshots();
+    st.entries=[];st.paid={};st.closed={};st.cashMoves=[];save();render();renderSnapshots();
     backupMsg('Lançamentos apagados. Os dados anteriores ficaram nas versões internas.');
   });
 };
@@ -867,3 +868,94 @@ window.addEventListener('beforeunload',function(ev){
   if(saveFailed||staging.length){ev.preventDefault();ev.returnValue='';}
 });
 ['chart-day','chart-cum'].forEach(function(cid){var c=document.getElementById(cid);c.addEventListener('pointermove',function(ev){var r=c.getBoundingClientRect(),px=ev.clientX-r.left,meta=cid==='chart-day'?chartMeta.day:chartMeta.cum;if(!meta)return hideTip();var item=null;if(meta.boxes){var best=Infinity;meta.boxes.forEach(function(b){var mid=(b.x+b.x2)/2,d=Math.abs(px-mid);if(d<best){best=d;item=b}})}else if(meta.pts){var best2=Infinity;meta.pts.forEach(function(p){var d=Math.abs(px-p.x);if(d<best2){best2=d;item=p}})}if(item)tip(ev,datebr(item.date)+'<br><strong>'+brl(item.value)+'</strong>')});c.addEventListener('pointerleave',hideTip)});window.addEventListener('resize',function(){clearTimeout(window.__v3rz);window.__v3rz=setTimeout(renderHistory,120)});
+
+// ---------------- Saldo em conta ----------------
+var cashAutoValue=null; // valor sugerido que o próprio app preencheu no campo
+function pctBR(v){return v==null?'—':((v>=0?'+':'')+(v*100).toFixed(2).replace('.',',')+'%')}
+function renderCash(){
+  var pid=st.active,body=document.getElementById('cash-body');
+  if(!body)return;
+  var accs=pid?cashAccounts(pid):[];
+  document.getElementById('c-accounts').innerHTML=accs.map(function(a){return'<option value="'+esc(a)+'">'}).join('');
+  var dateInp=document.getElementById('c-date');if(!dateInp.value)dateInp.value=iso(new Date());
+
+  var balances=accs.map(function(a){return accountBalance(pid,a)});
+  body.innerHTML=balances.length?balances.map(function(b){
+    var ck=b.checkpoint;
+    return'<tr><td>Conta '+esc(b.account)+'</td>'+
+      '<td>'+(ck?brl(ck.amount)+' <span class="small">em '+datebr(ck.date)+'</span>':'<span class="small">não informado</span>')+'</td>'+
+      '<td class="num '+(b.results<0?'neg':'pos')+'">'+brl(b.results)+' <span class="small">('+b.notes+')</span></td>'+
+      '<td class="num">'+brl(b.deposits)+'</td><td class="num">'+brl(b.withdrawals)+'</td>'+
+      '<td class="num"><strong>'+(b.known?brl(b.balance):'—')+'</strong></td>'+
+      '<td><button type="button" class="ghost" data-cash-check="'+esc(b.account)+'">Conferir saldo</button></td></tr>';
+  }).join(''):'<tr><td colspan="7" class="small" style="text-align:center;padding:18px">Nenhuma conta vinculada a este CPF. Digite o número da conta acima para começar.</td></tr>';
+
+  var total=pid?personCashTotal(pid):null,today=iso(new Date());
+  var mStart=today.slice(0,7)+'-01',yStart=today.slice(0,4)+'-01-01';
+  var rm=pid?cashReturn(pid,mStart,today):null,ry=pid?cashReturn(pid,yStart,today):null;
+  function box(k,v,cl,s){return'<div class="stat"><div class="k">'+k+'</div><div class="v '+(cl||'')+'">'+v+'</div><div class="s">'+s+'</div></div>'}
+  document.getElementById('cash-stats').innerHTML=
+    box('Saldo estimado total',total==null?'—':brl(total),'',total==null?'informe o saldo de pelo menos uma conta':'soma das contas do CPF')+
+    box('Resultado no mês',rm?brl(rm.result):'—',rm&&rm.result<0?'neg':'pos',rm?pctBR(rm.pct)+' sobre '+(rm.capital?brl(rm.capital):'capital não informado'):'')+
+    box('Resultado no ano',ry?brl(ry.result):'—',ry&&ry.result<0?'neg':'pos',ry?pctBR(ry.pct)+' sobre '+(ry.capital?brl(ry.capital):'capital não informado'):'')+
+    box('Aportes líquidos no ano',ry?brl(ry.deposits-ry.withdrawals):'—','',ry?'depósitos '+brl(ry.deposits)+' • retiradas '+brl(ry.withdrawals):'');
+
+  var moves=(st.cashMoves||[]).filter(function(m){return m.personId===pid}).sort(function(a,b){return b.date.localeCompare(a.date)});
+  document.getElementById('cash-moves-title').textContent='Movimentos registrados ('+moves.length+')';
+  document.getElementById('cash-moves').innerHTML=moves.length?moves.map(function(m){
+    return'<tr><td>'+datebr(m.date)+'</td><td>Conta '+esc(m.account)+'</td><td>'+esc(CASH_TYPES[m.type]||m.type)+'</td>'+
+      '<td class="num '+(m.type==='retirada'?'neg':'')+'">'+brl(m.amount)+'</td><td>'+esc(m.note||'')+'</td>'+
+      '<td><button type="button" class="danger" data-cash-del="'+esc(m.id)+'">Excluir</button></td></tr>';
+  }).join(''):'<tr><td colspan="6" class="small" style="text-align:center;padding:14px">Nenhum movimento.</td></tr>';
+  updateCashSuggestion();
+}
+// Sugestão: em "Saldo conferido", preenche o saldo que o app estima para a
+// conta/data e mostra a diferença quando o usuário digita o valor do extrato.
+function updateCashSuggestion(){
+  var hint=document.getElementById('cash-hint'),amt=document.getElementById('c-amount');
+  var acc=digits(document.getElementById('c-account').value),date=document.getElementById('c-date').value,type=document.getElementById('c-type').value;
+  if(type!=='saldo'||!acc||!date||!st.active){hint.textContent='';return}
+  var b=accountBalance(st.active,acc,date);
+  if(!b.known){hint.textContent='Primeiro saldo desta conta: informe o valor do extrato ao final de '+datebr(date)+'.';return}
+  if(amt.value===''||(cashAutoValue!==null&&+amt.value===cashAutoValue)){
+    amt.value=b.balance.toFixed(2);cashAutoValue=+amt.value;
+  }
+  var dif=round2((+amt.value||0)-b.balance);
+  hint.innerHTML='Sugestão do app para a conta '+esc(acc)+' ao final de '+datebr(date)+': <strong>'+brl(b.balance)+'</strong> — confira com o extrato e corrija se preciso.'+
+    (Math.abs(dif)>=0.01?' <span class="'+(dif<0?'neg':'pos')+'">Diferença: '+brl(dif)+'</span> <span class="small">(tarifas, custódia ou rendimentos fora das notas)</span>':'');
+}
+['c-account','c-date','c-type'].forEach(function(i){document.getElementById(i).addEventListener('change',updateCashSuggestion)});
+document.getElementById('c-amount').addEventListener('input',function(){
+  if(cashAutoValue!==null&&+this.value!==cashAutoValue)cashAutoValue=null;
+  updateCashSuggestion();
+});
+document.getElementById('cash-form').addEventListener('submit',function(ev){
+  ev.preventDefault();
+  if(!st.active){alert('Cadastre e selecione um contribuinte primeiro.');return}
+  var acc=digits(document.getElementById('c-account').value),amount=round2(+document.getElementById('c-amount').value);
+  var m={id:id(),personId:st.active,account:acc,date:document.getElementById('c-date').value,
+    type:document.getElementById('c-type').value,amount:amount,note:document.getElementById('c-note').value.trim()};
+  if(!acc||!m.date||isNaN(amount)||amount<0){alert('Informe conta, data e valor.');return}
+  if(!st.cashMoves)st.cashMoves=[];
+  st.cashMoves.push(m);
+  link(st.active,acc);
+  document.getElementById('c-amount').value='';document.getElementById('c-note').value='';cashAutoValue=null;
+  save();render();
+});
+document.getElementById('cash-card').addEventListener('click',function(ev){
+  var ck=ev.target.closest('[data-cash-check]'),del=ev.target.closest('[data-cash-del]');
+  if(ck){
+    document.getElementById('c-account').value=ck.getAttribute('data-cash-check');
+    document.getElementById('c-date').value=iso(new Date());
+    document.getElementById('c-type').value='saldo';
+    document.getElementById('c-amount').value='';cashAutoValue=null;
+    updateCashSuggestion();
+    var a=document.getElementById('c-amount');a.focus();a.select();
+  }
+  if(del){
+    var mid=del.getAttribute('data-cash-del');
+    if(!confirm('Excluir este movimento de conta?'))return;
+    st.cashMoves=st.cashMoves.filter(function(x){return x.id!==mid});
+    save();render();
+  }
+});

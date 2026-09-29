@@ -16,6 +16,7 @@
 <script src="../js/fiscal.js"></script>
 <script src="../js/pdf-parser.js"></script>
 <script src="../js/performance.js"></script>
+<script src="../js/cash.js"></script>
 </head>
 <body>
 <h1>Testes das regras fiscais</h1>
@@ -153,6 +154,62 @@ test('aviso de DARF: perto do vencimento, vencido e pago',function(){
   eq(al.map(function(x){return x.person.id+' '+x.ym+' '+x.daysLeft}),['b 2026-07 -25','a 2026-08 5','b 2026-08 5']);
   st.paid[paidKey('b','2026-07')]=true;
   eq(dueAlerts(new Date(2026,8,1),7).length,0,'longe do vencimento e jul pago');
+});
+
+
+// ---------- Saldo em conta ----------
+function cashState(){
+  st=stateDefault();st.active='p1';
+  st.people=[{id:'p1',name:'T',cpf:'',accounts:['111']}];
+  var n1=E('2026-09-02',100,1);n1.account='Conta 111';n1.liquidoNota=99;   // PDF: líquido da nota
+  var n2=E('2026-09-05',-40,0);n2.account='Conta 111';                     // manual: resultado − IRRF
+  var n3=E('2026-08-20',500,5);n3.account='Conta 111';n3.liquidoNota=495;   // antes do saldo conferido
+  var n4=E('2026-09-10',30,0);n4.account='Conta 222';                      // outra conta
+  st.entries=[n1,n2,n3,n4];
+  st.cashMoves=[
+    {id:'m1',personId:'p1',account:'111',date:'2026-09-01',type:'saldo',amount:1000},
+    {id:'m2',personId:'p1',account:'111',date:'2026-09-03',type:'deposito',amount:500},
+    {id:'m3',personId:'p1',account:'111',date:'2026-09-06',type:'retirada',amount:200},
+    {id:'m4',personId:'p1',account:'111',date:'2026-09-01',type:'deposito',amount:999} // mesmo dia do saldo: já incluso
+  ];
+}
+test('saldo: conferido + notas + depósitos − retiradas',function(){
+  cashState();
+  var b=accountBalance('p1','111','2026-09-30');
+  eq([b.known,b.results,b.notes,b.deposits,b.withdrawals,b.balance],[true,59,2,500,200,1359]);
+});
+test('saldo: posição em data intermediária',function(){
+  cashState();
+  eq(accountBalance('p1','111','2026-09-03').balance,1599);
+});
+test('saldo: novo saldo conferido reinicia a conta',function(){
+  cashState();
+  st.cashMoves.push({id:'m9',personId:'p1',account:'111',date:'2026-09-05',type:'saldo',amount:1550});
+  eq(accountBalance('p1','111','2026-09-30').balance,1350);
+});
+test('saldo: conta sem saldo conferido nem depósito fica desconhecida',function(){
+  cashState();
+  var b=accountBalance('p1','222','2026-09-30');
+  eq([b.known,b.balance],[false,30]);
+  eq(cashAccounts('p1'),['111','222']);
+  eq(personCashTotal('p1'),round2(1359+0*30)+0,'soma só contas conhecidas');
+});
+test('rentabilidade do mês sobre o capital',function(){
+  cashState();
+  st.cashMoves=st.cashMoves.filter(function(m){return m.id!=='m4'});
+  st.cashMoves.push({id:'m0',personId:'p1',account:'111',date:'2026-08-01',type:'saldo',amount:600});
+  // capital = saldo em 31/08 (600 + 495) + depósitos de set (500) = 1595; resultado set = 99 − 40 + 30 = 89
+  var r=cashReturn('p1','2026-09-01','2026-09-30');
+  eq([r.capital,r.result],[1595,89]);
+  eq(Math.round(r.pct*10000)/100,5.58);
+});
+test('rentabilidade: primeiro saldo dentro do período vira capital inicial',function(){
+  cashState();
+  st.cashMoves=st.cashMoves.filter(function(m){return m.id!=='m4'});
+  // ano: conta 111 começa com saldo 1000 em 01/09 → só conta o que veio depois
+  var r=cashReturn('p1','2026-01-01','2026-12-31');
+  // capital = 1000 + depósito 500; resultado = 99 − 40 (conta 111) + 30 (conta 222, sem saldo) = 89
+  eq([r.capital,r.result,r.deposits],[1500,89,500]);
 });
 
 // ---------- Resultado ----------

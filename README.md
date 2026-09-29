@@ -9,6 +9,7 @@ Apuração mensal de IR sobre **day trade** (ações e mercado futuro) por CPF, 
 - **Instalável** (Chrome/Edge): vira um aplicativo com ícone e janela própria — sem instalador .exe.
 - **Desempenho**: taxa de acerto, payoff, fator de lucro, drawdown, sequências, custos e resultado por dia da semana.
 - **Relatório para a declaração (IRPF)** mês a mês e **aviso de DARF** perto do vencimento ou vencido.
+- **Saldo em conta** por corretora: informe o saldo do extrato, depósitos e retiradas; o app soma o líquido de cada nota, sugere o saldo atual e calcula a rentabilidade do mês e do ano (não interfere no imposto).
 
 ## Como usar
 
@@ -59,6 +60,7 @@ Abra `http://localhost:8000/` (app) e `http://localhost:8000/tests/` (testes das
 | `js/reports.js` | Relatório mensal e DARF |
 | `js/charts.js` | Gráficos |
 | `js/performance.js` | Painel de desempenho |
+| `js/cash.js` | Saldo em conta e rentabilidade |
 | `js/storage.js` | IndexedDB, versões internas, pasta de backup |
 | `js/ui.js` | Telas e eventos |
 | `js/app.js` | Inicialização, instalação e atualização |

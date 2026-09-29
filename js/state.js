@@ -3,7 +3,7 @@
 'use strict';
 
 var DATA_VERSION=7.0;
-function stateDefault(){return{people:[],entries:[],paid:{},closed:{},active:'',version:DATA_VERSION,savedAt:''}}
+function stateDefault(){return{people:[],entries:[],paid:{},closed:{},cashMoves:[],active:'',version:DATA_VERSION,savedAt:''}}
 
 var st=stateDefault(), staging=[], editing=null;
 
@@ -11,6 +11,7 @@ function normalizeLoadedState(x){
   if(!x||!Array.isArray(x.people)||!Array.isArray(x.entries))throw new Error('arquivo de dados inválido');
   if(!x.paid)x.paid={};
   if(!x.closed)x.closed={};
+  if(!Array.isArray(x.cashMoves))x.cashMoves=[];
   if(!x.active&&x.people[0])x.active=x.people[0].id;
   migratePaidKeys(x);
   x.version=DATA_VERSION;

@@ -150,7 +150,7 @@ async function readFolderData(dir){
   }catch(e){return null}
 }
 function canonical(x){
-  return JSON.stringify({people:x.people,entries:x.entries,paid:x.paid,closed:x.closed});
+  return JSON.stringify({people:x.people,entries:x.entries,paid:x.paid,closed:x.closed,cashMoves:x.cashMoves||[]});
 }
 async function writeFolderData(){
   if(!backupReady||!backupHandle)return;

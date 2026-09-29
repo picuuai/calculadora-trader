@@ -76,9 +76,11 @@ function registerServiceWorker(){
       });
     });
   }).catch(function(){});
-  var reloading=false;
+  // Recarrega só quando uma versão NOVA assume (atualização). Na primeira
+  // visita não havia service worker controlando a página: nada a recarregar.
+  var hadController=!!navigator.serviceWorker.controller,reloading=false;
   navigator.serviceWorker.addEventListener('controllerchange',function(){
-    if(reloading)return;reloading=true;location.reload();
+    if(!hadController||reloading)return;reloading=true;location.reload();
   });
 }
 
