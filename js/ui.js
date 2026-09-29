@@ -815,6 +815,7 @@ document.getElementById('folder-btn').onclick=function(){
     if(e&&e.name!=='AbortError')backupMsg('Não foi possível conectar a pasta: '+e.message);
   });
 };
+document.getElementById('folder-banner-btn').onclick=function(){document.getElementById('folder-btn').click()};
 document.getElementById('folder-forget').onclick=function(){
   if(!confirm('Desconectar a pasta de backup? Os dados do app não são afetados.'))return;
   forgetBackupFolder().then(function(){backupMsg('Pasta de backup desconectada.')});

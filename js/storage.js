@@ -266,6 +266,9 @@ function renderStorageStatus(extra){
   }
   var ff=document.getElementById('folder-forget');
   if(ff)ff.style.display=backupHandle?'':'none';
+  // Pasta conhecida, mas o navegador não manteve a permissão nesta abertura.
+  var fbn=document.getElementById('folder-banner');
+  if(fbn)fbn.style.display=(backupHandle&&!backupReady)?'flex':'none';
   var msg=document.getElementById('backup-msg');
   if(msg&&extra)msg.textContent=extra;
 }

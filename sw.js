@@ -1,7 +1,7 @@
 // Service worker: guarda os arquivos do app para funcionar offline.
 // Os DADOS do usuário não passam por aqui (ficam no IndexedDB do navegador).
 // Ao publicar uma nova versão, altere CACHE_VERSION para os usuários receberem a atualização.
-var CACHE_VERSION='calculadora-trader-v7.0.0';
+var CACHE_VERSION='calculadora-trader-v7.0.1';
 var FILES=[
   './',
   'index.html',
