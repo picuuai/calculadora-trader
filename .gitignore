@@ -1,0 +1,7 @@
+# Nunca publicar dados pessoais (CPF, lançamentos) nem notas de corretagem.
+dados/
+backups/
+*.json
+!manifest.webmanifest
+*.pdf
+.claude/

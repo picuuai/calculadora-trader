@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Testes — Calculadora Trader</title>
+<style>
+  :root{--ok:#1E7A4C;--bad:#AA372B;--ink:#1C2B22;--bg:#F2F5EF}
+  @media (prefers-color-scheme: dark){:root{--ok:#68D19C;--bad:#F0968A;--ink:#E6ECE2;--bg:#12160F}}
+  body{font:14px Consolas,monospace;background:var(--bg);color:var(--ink);margin:0;padding:24px 16px}
+  .ok{color:var(--ok)} .bad{color:var(--bad);font-weight:bold} h1{font:700 20px Georgia,serif}
+  pre{white-space:pre-wrap}
+</style>
+<script src="../js/util.js"></script>
+<script src="../js/state.js"></script>
+<script src="../js/fiscal.js"></script>
+<script src="../js/pdf-parser.js"></script>
+</head>
+<body>
+<h1>Testes das regras fiscais</h1>
+<div id="summary"></div>
+<pre id="out"></pre>
+<script>
+'use strict';
+var results=[];
+function test(name,fn){
+  try{fn();results.push({name:name,ok:true})}
+  catch(e){results.push({name:name,ok:false,err:e.message})}
+}
+function eq(a,b,msg){
+  var ja=JSON.stringify(a),jb=JSON.stringify(b);
+  if(ja!==jb)throw new Error((msg||'')+' esperado '+jb+', obtido '+ja);
+}
+var seq=0;
+function E(date,result,irrf,cat,pid){return{id:'t'+(seq++),personId:pid||'p1',date:date,cat:cat||'futuros',result:result,irrf:irrf||0}}
+function L(entries){st=stateDefault();st.active='p1';return ledger(entries,{},'p1')}
+function pick(r){return{ym:r.ym,result:r.result,usedLoss:r.usedLoss,base:r.base,tax:r.tax,creditUsed:r.creditUsed,darf:r.darf,loss:r.loss,credit:r.credit}}
+
+// ---------- Apuração ----------
+test('lucro simples: 20% menos IRRF',function(){
+  var r=L([E('2026-03-10',600,3),E('2026-03-11',400,2)]);
+  eq(pick(r[0]),{ym:'2026-03',result:1000,usedLoss:0,base:1000,tax:200,creditUsed:5,darf:195,loss:0,credit:0});
+});
+test('prejuízo compensa meses seguintes',function(){
+  var r=L([E('2026-01-05',-300),E('2026-02-05',1000,10)]);
+  eq(pick(r[0]).loss,300);
+  eq(pick(r[1]),{ym:'2026-02',result:1000,usedLoss:300,base:700,tax:140,creditUsed:10,darf:130,loss:0,credit:0});
+});
+test('prejuízo maior que o lucro continua acumulado',function(){
+  var r=L([E('2026-01-05',-500),E('2026-02-05',200)]);
+  eq([r[1].usedLoss,r[1].base,r[1].darf,r[1].loss],[200,0,0,300]);
+});
+test('ações e futuros de day trade se compensam entre si',function(){
+  var r=L([E('2026-04-01',-100,0,'acoes'),E('2026-04-02',600,0,'futuros')]);
+  eq([r[0].result,r[0].acoes,r[0].futuros,r[0].tax],[500,-100,600,100]);
+});
+test('DARF abaixo de R$ 10 é acumulado para o mês seguinte',function(){
+  var r=L([E('2026-05-02',40),E('2026-06-02',30)]);
+  eq([r[0].darf,r[0].below],[0,true],'mai');
+  eq([r[1].tax,r[1].darf,r[1].below],[6,14,false],'jun');
+});
+test('IRRF maior que o imposto vira crédito no mesmo ano',function(){
+  var r=L([E('2026-07-01',10,5),E('2026-08-01',100,0)]);
+  eq([r[0].tax,r[0].creditUsed,r[0].credit],[2,2,3],'jul');
+  eq([r[1].tax,r[1].creditUsed,r[1].darf,r[1].credit],[20,3,17,0],'ago');
+});
+test('crédito de IRRF é zerado na virada do ano',function(){
+  var r=L([E('2025-12-01',-50,4),E('2026-01-10',100,0)]);
+  eq(r[0].credit,4);
+  eq([r[1].usedLoss,r[1].base,r[1].tax,r[1].creditUsed,r[1].darf],[50,50,10,0,10]);
+});
+test('arredondamento em centavos',function(){
+  var r=L([E('2026-08-18',28.38,0.28),E('2026-08-19',47.94,0.47),E('2026-08-20',50.5,0.5)]);
+  eq([r[0].result,r[0].tax,r[0].irrf,r[0].darf],[126.82,25.36,1.25,24.11]);
+});
+
+// ---------- Pagamento por CPF ----------
+test('pagamento marcado vale só para o CPF',function(){
+  st=stateDefault();
+  var paid={};paid[paidKey('p1','2026-03')]=true;
+  eq(ledger([E('2026-03-01',100)],paid,'p1')[0].paid,true);
+  eq(ledger([E('2026-03-01',100,0,'futuros','p2')],paid,'p2')[0].paid,false);
+});
+test('migração da chave antiga de pagamento (v6.2)',function(){
+  var x=normalizeLoadedState({people:[{id:'a'},{id:'b'}],entries:[E('2026-08-01',100,0,'futuros','a')],paid:{'2026-08|daytrade':true}});
+  eq(x.paid,{'a|2026-08|daytrade':true});
+});
+
+// ---------- Vencimento ----------
+test('vencimento: último dia útil do mês seguinte',function(){
+  eq(due('2026-08'),'30/09/2026');
+  eq(due('2026-09'),'30/10/2026');
+});
+test('vencimento pula 31/12 e fim de semana',function(){eq(due('2026-11'),'30/12/2026')});
+test('vencimento pula Carnaval (fev/2017)',function(){eq(due('2017-01'),'24/02/2017')});
+test('vencimento pula Sexta-feira Santa (29/03/2024)',function(){eq(due('2024-02'),'28/03/2024')});
+
+// ---------- Fechamento ----------
+test('fechamento: detecta divergência após alteração',function(){
+  st=stateDefault();st.active='p1';
+  st.closed[closeKey('p1','2026-03')]={result:1000,base:1000,tax:200,irrf:5,darf:195};
+  var r=ledger([E('2026-03-10',1000,5)],{},'p1')[0];
+  eq(closedDivergence('p1',r),null,'igual');
+  r=ledger([E('2026-03-10',1100,5)],{},'p1')[0];
+  eq(closedDivergence('p1',r),{closedDarf:195,closedBase:1000},'diferente');
+});
+
+// ---------- PDF ----------
+test('parseMoney: formato brasileiro',function(){
+  eq(parseMoney('1.234,56'),1234.56);eq(parseMoney('-12,50'),-12.5);eq(parseMoney('R$ 0,28'),0.28);
+});
+test('nota de day trade: resultado = bruto + custos; IRRF separado',function(){
+  var r=normalizeDayTradeNote({bruto:35,custos:-6.62,irrf:-0.28,liquidoNota:28.1,warnings:[]});
+  eq([r.result,r.irrf,r.tributos,r.warnings.length],[28.38,0.28,-0.28,0]);
+});
+test('nota: custos positivos são tratados como despesa',function(){
+  eq(normalizeDayTradeNote({bruto:100,custos:5,irrf:0,warnings:[]}).result,95);
+});
+
+// ---------- Resultado ----------
+var fail=results.filter(function(r){return!r.ok});
+document.getElementById('summary').innerHTML=fail.length
+  ?'<p class="bad">'+fail.length+' de '+results.length+' testes FALHARAM</p>'
+  :'<p class="ok">Todos os '+results.length+' testes passaram ✓</p>';
+document.getElementById('out').innerHTML=results.map(function(r){
+  return r.ok?'<span class="ok">✓</span> '+esc(r.name):'<span class="bad">✗ '+esc(r.name)+' — '+esc(r.err)+'</span>';
+}).join('\n');
+window.__testResults={total:results.length,failed:fail.map(function(r){return r.name+': '+r.err})};
+</script>
+</body>
+</html>

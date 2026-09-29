@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calculadora Trader</title>
+<meta name="description" content="Apuração mensal de IR sobre day trade (ações e mercado futuro) e DARF 6015. Funciona offline; os dados ficam só no seu computador.">
+<meta name="theme-color" content="#443577">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+<script defer src="js/vendor/qrcode.js"></script>
+<script defer src="js/vendor/pdf.min.js"></script>
+<script defer src="js/util.js"></script>
+<script defer src="js/state.js"></script>
+<script defer src="js/fiscal.js"></script>
+<script defer src="js/pdf-parser.js"></script>
+<script defer src="js/reports.js"></script>
+<script defer src="js/charts.js"></script>
+<script defer src="js/storage.js"></script>
+<script defer src="js/ui.js"></script>
+<script defer src="js/app.js"></script>
+</head>
+<body>
+<div id="v3app">
+<div class="top">
+  <div style="flex:1;min-width:280px">
+    <h1>Calculadora Trader <span style="font:600 13px var(--font-body);color:var(--ink-muted)">v7.0 • CPF</span></h1>
+    <p class="sub">Day trade por CPF • ações e mercado futuro consolidados • DARF 6015 • funcionamento offline</p>
+    <p class="sub" style="margin-top:7px;font-size:11.5px">Distribuição gratuita. Se esta calculadora te ajudou, uma doação via Pix é bem-vinda.</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px">
+    <div class="pix-block">
+      <span id="v4-pix-qr" class="pix-qr" title="Doação via Pix"></span>
+      <span class="hint">Doação via Pix</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+      <span class="pill" id="v3-top-status">pronto</span>
+      <span class="pill" id="storage-status" title="Local onde os dados principais estão sendo gravados">dados: neste computador</span>
+      <span class="pill" id="backup-status">backup: sem pasta</span>
+      <button type="button" class="primary" id="install-btn" style="display:none;padding:6px 12px">Instalar app</button>
+    </div>
+  </div>
+</div>
+<div id="update-banner" class="activebar" style="display:none;justify-content:space-between"><span><strong>Nova versão disponível.</strong> <span class="small">Seus dados não são afetados.</span></span><button type="button" class="primary" id="update-btn">Atualizar agora</button></div>
+<section class="card" id="welcome" style="display:none">
+  <h2>Bem-vindo à Calculadora Trader</h2>
+  <p class="desc">Seus dados ficam <strong>somente neste computador</strong>, guardados pelo próprio app — nada é enviado para a internet. Para começar:</p>
+  <div class="row">
+    <button type="button" class="primary" id="welcome-folder">Já uso a calculadora: conectar a pasta com meus dados</button>
+    <button type="button" class="ghost" id="welcome-file">Importar arquivo de backup (.json)</button>
+    <button type="button" class="ghost" id="welcome-new">Começar do zero</button>
+  </div>
+  <p class="small" style="margin-top:10px">Dica: escolha a pasta onde está a subpasta <code>dados</code> (por exemplo, a pasta da calculadora no OneDrive). Ela passa a receber uma cópia automática de tudo o que você lançar.</p>
+</section>
+<div class="activebar" id="activebar" style="display:none"><span class="small">Apuração do CPF</span><select id="active-person"></select><button type="button" class="ghost" id="manage-people" style="padding:7px 10px;white-space:nowrap">Cadastrar / Gerenciar</button><span class="small">Todas as contas/corretoras vinculadas a este CPF entram na mesma apuração.</span></div>
+<div id="people-modal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.46);overflow:auto;padding:20px">
+  <div style="width:calc(100% - 12px);max-width:960px;margin:24px auto;background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;box-shadow:0 18px 55px rgba(0,0,0,.25)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)">
+      <div>
+        <h2 style="margin:0;font-size:18px">Contribuintes / CPF</h2>
+        <div class="small" style="margin-top:3px">Cadastro e gerenciamento dos contribuintes e das contas reconhecidas.</div>
+      </div>
+      <button type="button" class="ghost" id="people-close">Fechar</button>
+    </div>
+    <div style="padding:16px">
+      <form id="person-form" class="row">
+        <input type="hidden" id="p-edit-id">
+        <div class="field" style="flex:2"><label>Nome</label><input id="p-name" required placeholder="Nome completo"></div>
+        <div class="field"><label>CPF</label><input id="p-cpf" required maxlength="14" inputmode="numeric" placeholder="000.000.000-00"></div>
+        <button class="primary" id="person-submit">Cadastrar</button>
+        <button type="button" class="ghost" id="person-cancel" style="display:none">Cancelar</button>
+      </form>
+      <div id="people-msg" class="status"></div>
+      <div class="scroll" style="margin-top:14px">
+        <table>
+          <thead><tr><th>Contribuinte</th><th>CPF</th><th>Contas reconhecidas</th><th></th></tr></thead>
+          <tbody id="people-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<section class="card"><h2>Importar nota em PDF</h2><p class="desc">Todos os PDFs do lote são lidos primeiro. Depois, contas/titulares ainda não reconhecidos são agrupados para você associar ao CPF uma única vez. Contas já memorizadas são reconhecidas automaticamente.</p><div class="drop" id="drop"><strong>Clique ou arraste um ou mais PDFs aqui</strong><input id="pdf-input" type="file" accept="application/pdf,.pdf" multiple hidden></div><div id="pdf-status" class="status"></div>
+<div id="assoc-wrap" style="display:none;margin-top:16px">
+  <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <div><strong>Associar contas ao CPF</strong><div class="small">Uma associação vale para todos os PDFs deste mesmo titular/conta no lote e fica memorizada para as próximas importações.</div></div>
+    <button type="button" class="primary" id="assoc-confirm">Confirmar associações</button>
+  </div>
+  <div class="scroll"><table><thead><tr><th>Titular encontrado</th><th>Conta encontrada</th><th>PDFs</th><th>Associar ao CPF</th></tr></thead><tbody id="assoc-body"></tbody></table></div>
+</div>
+<div id="staging-wrap" style="display:none;margin-top:15px"><div class="row" style="justify-content:space-between;margin-bottom:10px"><strong>Revisar antes de adicionar</strong><div><button type="button" class="ghost" id="stage-clear">Descartar</button> <button type="button" class="primary" id="stage-commit">Adicionar</button></div></div><div class="scroll"><table><thead><tr><th>Arquivo / identificação</th><th>CPF</th><th>Data</th><th>Mercado</th><th class="num">Resultado</th><th class="num">IRRF</th><th>Referência</th><th></th></tr></thead><tbody id="stage-body"></tbody></table></div></div></section>
+<section class="card"><h2>Lançamento manual</h2><p class="desc">Informe o resultado líquido de day trade do lançamento e o IRRF efetivamente retido na nota. A corretora/conta é opcional, mas ajuda a reconhecer futuros PDFs.</p><form id="entry-form" class="row"><div class="field" style="flex:1.5"><label>Contribuinte / CPF</label><select id="f-person" required></select></div><div class="field"><label>Data</label><input id="f-date" type="date" required></div><div class="field"><label>Mercado</label><select id="f-cat"><option value="acoes">Ações</option><option value="futuros">Mercado futuro</option></select></div><div class="field"><label>Resultado líquido</label><input id="f-result" type="number" step="0.01" required></div><div class="field"><label>IRRF</label><input id="f-irrf" type="number" step="0.01" placeholder="0,00"></div><div class="field" style="flex:1.2"><label>Corretora / conta</label><input id="f-account" placeholder="ex.: Corretora 123456"></div><div class="field" style="flex:1.2"><label>Referência</label><input id="f-ref" placeholder="nota/comprovante"></div><button id="entry-btn" class="primary">Adicionar</button></form><div id="entry-msg" class="status"></div></section>
+<section class="card">
+  <h2>Fechamento mensal</h2>
+  <p class="desc">Conferência final da competência. Ao fechar, os lançamentos daquele mês ficam bloqueados contra edição, exclusão e novas importações até a reabertura.</p>
+  <div class="row" style="margin-bottom:14px">
+    <div class="field"><label>Competência</label><select id="close-month" style="min-width:170px"></select></div>
+    <button type="button" class="primary" id="close-toggle">Fechar competência</button>
+    <button type="button" class="ghost" id="close-darf">Gerar DARF</button>
+    <button type="button" class="ghost" id="close-paid">Marcar pago</button>
+    <button type="button" class="ghost" id="monthly-report">Gerar relatório mensal</button>
+    <span id="close-status" class="small"></span>
+  </div>
+  <div class="stats" id="close-stats" style="margin-bottom:14px"></div>
+  <div class="scroll"><table><thead><tr><th>Conta / corretora</th><th class="num">Lançamentos</th><th class="num">Bruto</th><th class="num">Custos</th><th class="num">Resultado</th><th class="num">IRRF</th><th class="num">Líquido nota</th></tr></thead><tbody id="account-summary"></tbody></table></div>
+</section>
+
+<div class="stats" id="stats"></div>
+
+<section class="card">
+  <h2>Resumo anual da apuração</h2>
+  <p class="desc">Consolida o imposto do ano: IRRF retido nas notas, crédito utilizado na apuração, DARFs efetivamente marcados como pagos e o total de IR recolhido/retido.</p>
+  <div class="row" style="margin-bottom:12px"><select id="irrf-year" style="max-width:150px"></select></div>
+  <div class="stats" id="irrf-stats"></div>
+</section>
+
+<section class="card">
+  <h2>Painel de inconsistências</h2>
+  <p class="desc">Avisos de cadastro ou lançamentos que merecem conferência. Nenhum alerta altera automaticamente a apuração.</p>
+  <div id="issues-panel"></div>
+</section>
+
+<section class="card"><h2>Histórico e gráficos</h2><p class="desc">Os gráficos mostram o valor e a data de cada pregão. Filtre por mês, mercado e conta da corretora. O filtro por conta afeta somente histórico e gráficos; a apuração fiscal continua consolidada pelo CPF.</p><div class="row" style="margin-bottom:12px"><select id="flt-month" style="max-width:160px"></select><select id="flt-cat" style="max-width:180px"><option value="">Todos os mercados</option><option value="acoes">Ações</option><option value="futuros">Mercado futuro</option></select><select id="flt-account" style="max-width:220px"><option value="">Todas as contas</option></select><button type="button" id="flt-clear" class="ghost">Limpar filtros</button><span id="count" class="small"></span></div><div class="charts"><div><div class="charttitle">Resultado diário</div><div class="chartbox"><canvas id="chart-day"></canvas></div></div><div><div class="charttitle">Resultado acumulado</div><div class="chartbox"><canvas id="chart-cum"></canvas></div></div></div><div class="scroll" style="margin-top:14px"><table><thead><tr><th>Data</th><th>Mercado</th><th class="num">Bruto</th><th class="num">Custos</th><th class="num">Resultado</th><th class="num">IRRF</th><th class="num">Líquido nota</th><th>Referência</th><th>Corretora / conta</th><th>Origem</th><th></th></tr></thead><tbody id="history"></tbody></table></div></section>
+<section class="card"><h2>Dados e backup</h2><p class="desc">Os dados ficam guardados pelo app, somente neste computador. Para ter uma cópia fora do app (recomendado), conecte uma pasta de backup — por exemplo no OneDrive: cada alteração é gravada em <code>dados/calculadora-trader-dados.json</code>, o mesmo arquivo da versão portátil, e versões antigas na subpasta <code>backups</code>. No app instalado, marque “Permitir sempre” quando o navegador perguntar, para não precisar reautorizar.</p>
+<div class="row"><button class="ghost" id="folder-btn">Conectar pasta de backup</button><button class="ghost" id="folder-forget" style="display:none">Desconectar pasta</button><button class="ghost" id="backup-out">Baixar backup</button><button class="ghost" id="backup-in">Restaurar arquivo</button><button class="ghost" id="backup-now">Salvar versão agora</button><button class="danger" id="wipe">Apagar lançamentos</button><input id="backup-file" type="file" accept="application/json,.json" hidden></div>
+<div class="row" style="margin-top:12px"><div class="field" style="flex:3"><label>Versões internas (criadas automaticamente)</label><select id="snap-select"></select></div><button type="button" class="ghost" id="snap-restore">Restaurar esta versão</button></div>
+<div id="backup-msg" class="small" style="margin-top:8px"></div></section>
+<footer class="small" style="border-top:1px solid var(--line);padding-top:14px"><strong>Critérios:</strong> 20% sobre a base líquida mensal de day trade. Prejuízos de day trade são compensados em meses seguintes. IRRF de day trade é utilizado dentro do mesmo ano-calendário e zerado para o cálculo automático na virada do ano. DARF inferior a R$ 10 é acumulado. O vencimento é estimado pelo último dia útil do mês seguinte, considerando finais de semana e feriados nacionais/bancários conhecidos; confirme no Sicalc.</footer>
+<div class="tip" id="tip"></div>
+</div>
+<noscript>Ative o JavaScript para usar a Calculadora Trader.</noscript>
+</body>
+</html>

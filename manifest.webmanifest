@@ -1,0 +1,18 @@
+{
+  "name": "Calculadora Trader",
+  "short_name": "Calc Trader",
+  "description": "Apuração mensal de IR sobre day trade (ações e mercado futuro) e DARF 6015. Funciona offline; os dados ficam só no seu computador.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F5EF",
+  "theme_color": "#443577",
+  "lang": "pt-BR",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
