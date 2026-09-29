@@ -2,9 +2,32 @@
 // Depende de todos os outros módulos (carregar por último, antes de app.js).
 'use strict';
 
+// Aviso de DARF perto do vencimento (7 dias) ou vencido, para todos os CPFs.
+function renderDueBanner(){
+  var el=document.getElementById('due-banner');if(!el)return;
+  var list=dueAlerts();
+  if(!list.length){el.style.display='none';el.innerHTML='';return}
+  el.style.display='block';
+  el.innerHTML=list.map(function(a){
+    var late=a.daysLeft<0;
+    var quando=late?'venceu em '+a.due+' — emita pelo Sicalc com multa e juros':(a.daysLeft===0?'vence HOJE ('+a.due+')':'vence em '+a.daysLeft+' dia(s) ('+a.due+')');
+    return'<div class="activebar" style="margin-bottom:8px;justify-content:space-between;border-color:'+(late?'var(--critical)':'var(--warning)')+';background:'+(late?'var(--critical-soft)':'var(--warning-soft)')+'">'+
+      '<span><strong>DARF '+ymlabel(a.ym)+' — '+brl(a.darf)+'</strong> <span class="small">'+esc(a.person.name)+' • '+quando+'</span></span>'+
+      '<button type="button" class="ghost" data-due-go="'+esc(a.person.id)+'|'+a.ym+'">Ver competência</button></div>';
+  }).join('');
+}
+document.getElementById('due-banner').addEventListener('click',function(ev){
+  var b=ev.target.closest('[data-due-go]');if(!b)return;
+  var parts=b.getAttribute('data-due-go').split('|');
+  if(st.active!==parts[0]){st.active=parts[0];save();render()}
+  var sel=document.getElementById('close-month');sel.value=parts[1];renderClosePanel(ledger(activeEntries()));
+  sel.scrollIntoView({behavior:'smooth',block:'center'});
+});
+document.getElementById('irpf-report').addEventListener('click',function(){gerarRelatorioAnual(document.getElementById('irrf-year').value)});
+
 function setTopStatus(t){var e=document.getElementById('v3-top-status');if(e)e.textContent=t}
 
-function render(){renderPeople();renderSelects();var L=ledger(activeEntries());renderCloseMonths(L);renderStats(L);renderIrrfAnnual(L);renderIssues();renderFilters();renderHistory()}
+function render(){renderPeople();renderSelects();var L=ledger(activeEntries());renderCloseMonths(L);renderStats(L);renderIrrfAnnual(L);renderIssues();renderFilters();renderHistory();renderDueBanner()}
 function renderPeople(){
   var b=document.getElementById('people-body');
   b.innerHTML=st.people.length?st.people.map(function(p){
@@ -202,7 +225,7 @@ function renderHistory(){var list=filtered();document.getElementById('count').te
       '<td>'+esc(e.account||'—')+'</td>'+
       '<td><span class="badge neutral">'+(e.origin==='pdf'?'PDF':'Manual')+'</span></td>'+
       '<td>'+(isMonthClosed(e.personId,ym(e.date))?'<span class="badge ok">Fechada</span>':'<button class="ghost" data-edit="'+e.id+'">Editar</button> <button class="danger" data-del="'+e.id+'">Excluir</button>')+'</td>'+
-    '</tr>'}).join(''):'<tr><td colspan="11" class="small" style="text-align:center;padding:22px">Nenhum lançamento neste filtro.</td></tr>';drawCharts(list)}
+    '</tr>'}).join(''):'<tr><td colspan="11" class="small" style="text-align:center;padding:22px">Nenhum lançamento neste filtro.</td></tr>';drawCharts(list);renderPerformance(list)}
 
 // Associação automática SOMENTE por número de conta já memorizado.
 // Nome igual é usado apenas como sugestão na associação em lote.

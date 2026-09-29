@@ -5,6 +5,8 @@ Apuração mensal de IR sobre **day trade** (ações e mercado futuro) por CPF, 
 - **Seus dados ficam só no seu computador.** O app é um conjunto de arquivos estáticos; não existe servidor, conta ou banco de dados on-line. Nada do que você lança é enviado para a internet.
 - **Funciona offline** depois de aberto uma vez.
 - **Instalável** (Chrome/Edge): vira um aplicativo com ícone e janela própria — sem instalador .exe.
+- **Desempenho**: taxa de acerto, payoff, fator de lucro, drawdown, sequências, custos e resultado por dia da semana.
+- **Relatório para a declaração (IRPF)** mês a mês e **aviso de DARF** perto do vencimento ou vencido.
 
 ## Como usar
 
@@ -54,6 +56,7 @@ Abra `http://localhost:8000/` (app) e `http://localhost:8000/tests/` (testes das
 | `js/pdf-parser.js` | Leitura das notas/comprovantes em PDF |
 | `js/reports.js` | Relatório mensal e DARF |
 | `js/charts.js` | Gráficos |
+| `js/performance.js` | Painel de desempenho |
 | `js/storage.js` | IndexedDB, versões internas, pasta de backup |
 | `js/ui.js` | Telas e eventos |
 | `js/app.js` | Inicialização, instalação e atualização |

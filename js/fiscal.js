@@ -8,6 +8,25 @@ function easter(y){var a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%
 function nonbiz(d){if(d.getDay()===0||d.getDay()===6)return true;var md=String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');if(['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25','12-31'].indexOf(md)>=0)return true;var e=easter(d.getFullYear()),gf=new Date(e),co=new Date(e),c1=new Date(e),c2=new Date(e);gf.setDate(e.getDate()-2);co.setDate(e.getDate()+60);c1.setDate(e.getDate()-48);c2.setDate(e.getDate()-47);/* c1/c2 = segunda e terça de Carnaval (sem expediente bancário) */return iso(d)===iso(gf)||iso(d)===iso(co)||iso(d)===iso(c1)||iso(d)===iso(c2)}
 function due(x){var p=x.split('-'),y=+p[0],m=+p[1]+1;if(m>12){m=1;y++}var d=new Date(y,m,0);while(nonbiz(d))d.setDate(d.getDate()-1);return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()}
 
+function dueDate(x){var p=due(x).split('/');return new Date(+p[2],+p[1]-1,+p[0])}
+
+// DARFs em aberto de todos os contribuintes que vencem em até `days` dias
+// (ou já venceram). today é opcional (testes).
+function dueAlerts(today,days){
+  today=today||new Date();days=days==null?7:days;
+  var t0=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+  var out=[];
+  st.people.forEach(function(p){
+    var es=st.entries.filter(function(e){return e.personId===p.id});
+    ledger(es,st.paid,p.id).forEach(function(r){
+      if(!(r.darf>0)||r.paid)return;
+      var d=dueDate(r.ym),left=Math.round((d-t0)/86400000);
+      if(left<=days)out.push({person:p,ym:r.ym,darf:r.darf,due:due(r.ym),daysLeft:left});
+    });
+  });
+  return out.sort(function(a,b){return a.daysLeft-b.daysLeft});
+}
+
 // ---- Apuração mensal ----
 // Day trade de ações e futuros forma um único resultado mensal (prejuízo de
 // day trade compensa lucro de day trade em qualquer mercado). Regras:

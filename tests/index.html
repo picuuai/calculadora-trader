@@ -15,6 +15,7 @@
 <script src="../js/state.js"></script>
 <script src="../js/fiscal.js"></script>
 <script src="../js/pdf-parser.js"></script>
+<script src="../js/performance.js"></script>
 </head>
 <body>
 <h1>Testes das regras fiscais</h1>
@@ -115,6 +116,43 @@ test('nota de day trade: resultado = bruto + custos; IRRF separado',function(){
 });
 test('nota: custos positivos são tratados como despesa',function(){
   eq(normalizeDayTradeNote({bruto:100,custos:5,irrf:0,warnings:[]}).result,95);
+});
+
+
+// ---------- Desempenho ----------
+test('desempenho: acerto, payoff, fator de lucro',function(){
+  // 3 pregões: +100 (dois lançamentos no mesmo dia), -50, +20
+  var p=computePerformance([E('2026-09-01',60),E('2026-09-01',40),E('2026-09-02',-50),E('2026-09-03',20)]);
+  eq([p.days,p.wins,p.losses,p.total],[3,2,1,70]);
+  eq([p.avgWin,p.avgLoss,p.payoff,p.profitFactor],[60,-50,1.2,2.4]);
+});
+test('desempenho: drawdown máximo e sequências',function(){
+  var p=computePerformance([E('2026-09-01',100),E('2026-09-02',-30),E('2026-09-03',-50),E('2026-09-04',40),E('2026-09-07',10),E('2026-09-08',0),E('2026-09-09',5)]);
+  eq([p.maxDrawdown,p.ddFrom,p.ddTo],[80,'2026-09-01','2026-09-03']);
+  eq([p.bestStreak,p.worstStreak],[2,2]);
+});
+test('desempenho: dia da semana e custos',function(){
+  var a=E('2026-09-28',10);a.bruto=12;a.custos=-2;   // segunda
+  var b=E('2026-09-29',-5);                          // terça, sem detalhe
+  var p=computePerformance([a,b]);
+  eq([p.week[0].label,p.week[0].days,p.week[0].total,p.week[1].total],['Seg',1,10,-5]);
+  eq([p.bruto,p.custos,p.detailEntries],[12,-2,1]);
+});
+test('desempenho: sem perdas → payoff e fator indefinidos',function(){
+  var p=computePerformance([E('2026-09-01',10)]);
+  eq([p.payoff,p.profitFactor,p.maxDrawdown],[null,null,0]);
+});
+
+// ---------- Avisos de vencimento ----------
+test('aviso de DARF: perto do vencimento, vencido e pago',function(){
+  st=stateDefault();
+  st.people=[{id:'a',name:'A',cpf:''},{id:'b',name:'B',cpf:''}];
+  st.entries=[E('2026-08-10',1000,0,'futuros','a'),E('2026-08-10',500,0,'futuros','b'),E('2026-07-10',300,0,'futuros','b')];
+  // venc. de ago/2026 = 30/09/2026; jul/2026 = 31/08/2026
+  var al=dueAlerts(new Date(2026,8,25),7);
+  eq(al.map(function(x){return x.person.id+' '+x.ym+' '+x.daysLeft}),['b 2026-07 -25','a 2026-08 5','b 2026-08 5']);
+  st.paid[paidKey('b','2026-07')]=true;
+  eq(dueAlerts(new Date(2026,8,1),7).length,0,'longe do vencimento e jul pago');
 });
 
 // ---------- Resultado ----------

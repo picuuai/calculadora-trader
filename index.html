@@ -18,6 +18,7 @@
 <script defer src="js/pdf-parser.js"></script>
 <script defer src="js/reports.js"></script>
 <script defer src="js/charts.js"></script>
+<script defer src="js/performance.js"></script>
 <script defer src="js/storage.js"></script>
 <script defer src="js/ui.js"></script>
 <script defer src="js/app.js"></script>
@@ -26,7 +27,7 @@
 <div id="v3app">
 <div class="top">
   <div style="flex:1;min-width:280px">
-    <h1>Calculadora Trader <span style="font:600 13px var(--font-body);color:var(--ink-muted)">v7.0 • CPF</span></h1>
+    <h1>Calculadora Trader <span style="font:600 13px var(--font-body);color:var(--ink-muted)">v7.1 • CPF</span></h1>
     <p class="sub">Day trade por CPF • ações e mercado futuro consolidados • DARF 6015 • funcionamento offline</p>
     <p class="sub" style="margin-top:7px;font-size:11.5px">Distribuição gratuita. Se esta calculadora te ajudou, uma doação via Pix é bem-vinda.</p>
   </div>
@@ -44,6 +45,7 @@
   </div>
 </div>
 <div id="update-banner" class="activebar" style="display:none;justify-content:space-between"><span><strong>Nova versão disponível.</strong> <span class="small">Seus dados não são afetados.</span></span><button type="button" class="primary" id="update-btn">Atualizar agora</button></div>
+<div id="due-banner" style="display:none;margin-bottom:20px"></div>
 <div id="folder-banner" class="activebar" style="display:none;justify-content:space-between;border-color:var(--warning);background:var(--warning-soft)"><span><strong>Backup na pasta pausado.</strong> <span class="small">Seus dados estão salvos no app. Autorize a pasta para retomar a cópia automática — escolha <strong>“Permitir em todas as visitas”</strong> para não perguntar de novo.</span></span><button type="button" class="primary" id="folder-banner-btn">Autorizar pasta</button></div>
 <section class="card" id="welcome" style="display:none">
   <h2>Bem-vindo à Calculadora Trader</h2>
@@ -113,7 +115,7 @@
 <section class="card">
   <h2>Resumo anual da apuração</h2>
   <p class="desc">Consolida o imposto do ano: IRRF retido nas notas, crédito utilizado na apuração, DARFs efetivamente marcados como pagos e o total de IR recolhido/retido.</p>
-  <div class="row" style="margin-bottom:12px"><select id="irrf-year" style="max-width:150px"></select></div>
+  <div class="row" style="margin-bottom:12px"><select id="irrf-year" style="max-width:150px"></select><button type="button" class="ghost" id="irpf-report">Relatório para a declaração (IRPF)</button></div>
   <div class="stats" id="irrf-stats"></div>
 </section>
 
@@ -124,6 +126,12 @@
 </section>
 
 <section class="card"><h2>Histórico e gráficos</h2><p class="desc">Os gráficos mostram o valor e a data de cada pregão. Filtre por mês, mercado e conta da corretora. O filtro por conta afeta somente histórico e gráficos; a apuração fiscal continua consolidada pelo CPF.</p><div class="row" style="margin-bottom:12px"><select id="flt-month" style="max-width:160px"></select><select id="flt-cat" style="max-width:180px"><option value="">Todos os mercados</option><option value="acoes">Ações</option><option value="futuros">Mercado futuro</option></select><select id="flt-account" style="max-width:220px"><option value="">Todas as contas</option></select><button type="button" id="flt-clear" class="ghost">Limpar filtros</button><span id="count" class="small"></span></div><div class="charts"><div><div class="charttitle">Resultado diário</div><div class="chartbox"><canvas id="chart-day"></canvas></div></div><div><div class="charttitle">Resultado acumulado</div><div class="chartbox"><canvas id="chart-cum"></canvas></div></div></div><div class="scroll" style="margin-top:14px"><table><thead><tr><th>Data</th><th>Mercado</th><th class="num">Bruto</th><th class="num">Custos</th><th class="num">Resultado</th><th class="num">IRRF</th><th class="num">Líquido nota</th><th>Referência</th><th>Corretora / conta</th><th>Origem</th><th></th></tr></thead><tbody id="history"></tbody></table></div></section>
+<section class="card">
+  <h2>Desempenho</h2>
+  <p class="desc">Estatísticas por pregão (soma dos lançamentos de cada dia), usando os mesmos filtros do histórico acima. Não altera a apuração fiscal.</p>
+  <div class="stats" id="perf-stats" style="margin-bottom:14px"></div>
+  <div class="scroll"><table style="min-width:520px"><thead><tr><th>Dia da semana</th><th class="num">Pregões</th><th class="num">Acerto</th><th class="num">Resultado</th><th></th></tr></thead><tbody id="perf-week"></tbody></table></div>
+</section>
 <section class="card"><h2>Dados e backup</h2><p class="desc">Os dados ficam guardados pelo app, somente neste computador. Para ter uma cópia fora do app (recomendado), conecte uma pasta de backup — por exemplo no OneDrive: cada alteração é gravada em <code>dados/calculadora-trader-dados.json</code>, o mesmo arquivo da versão portátil, e versões antigas na subpasta <code>backups</code>. No app instalado, marque “Permitir sempre” quando o navegador perguntar, para não precisar reautorizar.</p>
 <div class="row"><button class="ghost" id="folder-btn">Conectar pasta de backup</button><button class="ghost" id="folder-forget" style="display:none">Desconectar pasta</button><button class="ghost" id="backup-out">Baixar backup</button><button class="ghost" id="backup-in">Restaurar arquivo</button><button class="ghost" id="backup-now">Salvar versão agora</button><button class="danger" id="wipe">Apagar lançamentos</button><input id="backup-file" type="file" accept="application/json,.json" hidden></div>
 <div class="row" style="margin-top:12px"><div class="field" style="flex:3"><label>Versões internas (criadas automaticamente)</label><select id="snap-select"></select></div><button type="button" class="ghost" id="snap-restore">Restaurar esta versão</button></div>

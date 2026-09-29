@@ -347,3 +347,60 @@ function gerarDARF(key){
 }
 
 
+
+// Relatório anual para a declaração (IRPF): valores mês a mês no formato
+// da ficha "Renda Variável → Operações Comuns / Day-Trade".
+function gerarRelatorioAnual(year){
+  var p=person(st.active);
+  if(!p||!year){alert('Selecione um contribuinte e um ano.');return}
+  var L=ledger(activeEntries()),rows=L.filter(function(r){return r.ym.slice(0,4)===year});
+  if(!rows.length){alert('Não há lançamentos em '+year+'.');return}
+  var prev=L.filter(function(r){return r.ym<year+'-01'}),lossStart=prev.length?prev[prev.length-1].loss:0;
+  var byYm={};rows.forEach(function(r){byYm[r.ym]=r});
+  var tot={acoes:0,futuros:0,result:0,tax:0,irrf:0,creditUsed:0,darfPago:0,darfAberto:0};
+  var body='';
+  for(var m=1;m<=12;m++){
+    var k=year+'-'+String(m).padStart(2,'0'),r=byYm[k];
+    if(!r){body+='<tr class="muted"><td>'+ymlabel(k)+'</td>'+'<td class="num">—</td>'.repeat(9)+'</tr>';continue}
+    tot.acoes+=r.acoes;tot.futuros+=r.futuros;tot.result+=r.result;tot.tax+=r.tax;tot.irrf+=r.irrf;tot.creditUsed+=r.creditUsed||0;
+    if(r.darf>0){if(r.paid)tot.darfPago+=r.darf;else tot.darfAberto+=r.darf}
+    body+='<tr><td>'+ymlabel(k)+'</td><td class="num">'+brl(r.acoes)+'</td><td class="num">'+brl(r.futuros)+'</td>'+
+      '<td class="num"><b>'+brl(r.result)+'</b></td><td class="num">'+brl(r.usedLoss)+'</td><td class="num">'+brl(r.loss)+'</td>'+
+      '<td class="num">'+brl(r.tax)+'</td><td class="num">'+brl(r.irrf)+'</td>'+
+      '<td class="num">'+(r.darf>0?brl(r.darf):(r.below?'acumulado':'—'))+'</td>'+
+      '<td class="num">'+(r.darf>0?(r.paid?'pago':'<span class="alert">em aberto</span>'):'—')+'</td></tr>';
+  }
+  var last=rows[rows.length-1];
+  Object.keys(tot).forEach(function(k){tot[k]=round2(tot[k])});
+  var html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>IRPF ${reportEsc(year)} - Day Trade - ${reportEsc(p.name)}</title>
+  <style>@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{font:12px Arial;color:#111;margin:16px}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:18px 0 6px}.muted{color:#888}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0}.box{border:1px solid #bbb;padding:7px}.box b{display:block;font-size:14px;margin-top:3px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bbb;padding:5px;text-align:left}th{background:#f3f3f3}.num{text-align:right}.alert{color:#AA372B;font-weight:bold}ol li{margin:4px 0}.foot{margin-top:16px;font-size:10px;color:#666}.toolbar{margin-bottom:10px}.toolbar button{padding:8px 12px}@media print{.toolbar{display:none}body{margin:0}}</style></head><body>
+  <div class="toolbar"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div>
+  <h1>Declaração IRPF ${reportEsc(year)} — Renda Variável (Day Trade)</h1>
+  <div>${reportEsc(p.name)} • CPF ${reportEsc(cpfFmt(p.cpf))}</div>
+  <div class="grid">
+    <div class="box">Resultado day trade no ano<b>${brl(tot.result)}</b></div>
+    <div class="box">Prejuízo a compensar em 31/12<b>${brl(last.loss)}</b></div>
+    <div class="box">IRRF day trade retido no ano<b>${brl(tot.irrf)}</b></div>
+    <div class="box">DARFs pagos (competências do ano)<b>${brl(tot.darfPago)}</b></div>
+  </div>
+  ${lossStart?'<p>Prejuízo de day trade vindo de anos anteriores (saldo em 31/12/'+(+year-1)+'): <b>'+brl(lossStart)+'</b>.</p>':''}
+  ${tot.darfAberto?'<p class="alert">Atenção: há '+brl(tot.darfAberto)+' em DARFs de '+reportEsc(year)+' não marcados como pagos. Pague (com multa e juros pelo Sicalc, se vencidos) e marque como pago antes de declarar.</p>':''}
+  <h2>Mês a mês</h2>
+  <table><thead><tr><th>Mês</th><th class="num">Day trade ações</th><th class="num">Day trade futuros</th><th class="num">Resultado do mês</th><th class="num">Prejuízo compensado</th><th class="num">Prejuízo a compensar</th><th class="num">Imposto 20%</th><th class="num">IRRF no mês</th><th class="num">DARF</th><th class="num">Situação</th></tr></thead>
+  <tbody>${body}</tbody>
+  <tfoot><tr><th>Total</th><th class="num">${brl(tot.acoes)}</th><th class="num">${brl(tot.futuros)}</th><th class="num">${brl(tot.result)}</th><th></th><th></th><th class="num">${brl(tot.tax)}</th><th class="num">${brl(tot.irrf)}</th><th class="num">${brl(tot.darfPago+tot.darfAberto)}</th><th></th></tr></tfoot></table>
+  <h2>Como preencher no programa do IRPF</h2>
+  <ol>
+    <li>Abra a ficha <b>Renda Variável → Operações Comuns / Day-Trade</b> e selecione o titular.</li>
+    <li>Em cada mês, preencha a coluna <b>Day-Trade</b>:
+      <ul><li><b>Mercado à vista – ações</b>: valor da coluna “Day trade ações”.</li>
+      <li><b>Mercado futuro</b>: valor da coluna “Day trade futuros”, na linha do ativo negociado — mini-índice (WIN) em <b>índices</b>, mini-dólar (WDO) em <b>dólar dos EUA</b>. Se operou os dois no mesmo mês, divida conforme as notas.</li></ul></li>
+    <li>Em <b>IR fonte (Day-Trade) no mês</b>, informe a coluna “IRRF no mês”.</li>
+    <li>Em <b>Imposto pago</b>, informe o valor do DARF código 6015 pago referente àquele mês.</li>
+    <li>O programa calcula prejuízo a compensar e imposto devido; confira com as colunas acima. ${lossStart?'Em janeiro, o “Resultado negativo até o mês anterior” (day trade) deve ser '+brl(lossStart)+'.':''}</li>
+  </ol>
+  <div class="foot">Relatório gerado offline pela Calculadora Trader em ${reportEsc(new Date().toLocaleString('pt-BR'))}. Documento de apoio; confira com os informes das corretoras. IRRF não utilizado no ano (${brl(last.credit)}) é informado nos meses em que foi retido, na própria ficha.</div>
+  </body></html>`;
+  var w=window.open('','_blank');if(!w){alert('Permita pop-ups para gerar o relatório.');return}
+  w.document.open();w.document.write(html);w.document.close();
+}
