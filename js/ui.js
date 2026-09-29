@@ -438,6 +438,7 @@ function resetPersonForm(){
 }
 function openPeopleModal(){
   renderPeople();
+  renderCash();
   document.getElementById('people-msg').textContent='';
   document.getElementById('people-modal').style.display='block';
   document.body.style.overflow='hidden';
@@ -871,10 +872,15 @@ window.addEventListener('beforeunload',function(ev){
 
 // ---------------- Saldo em conta ----------------
 var cashAutoValue=null; // valor sugerido que o próprio app preencheu no campo
+var cashPid=''; // CPF escolhido na seção de saldo do Cadastrar / Gerenciar
+function cashPerson(){if(!person(cashPid))cashPid=st.active;return cashPid}
 function pctBR(v){return v==null?'—':((v>=0?'+':'')+(v*100).toFixed(2).replace('.',',')+'%')}
 function renderCash(){
-  var pid=st.active,body=document.getElementById('cash-body');
+  renderCashSummary();
+  var pid=cashPerson(),body=document.getElementById('cash-body');
   if(!body)return;
+  var ps=document.getElementById('cash-person');
+  ps.innerHTML=st.people.map(function(p){return'<option value="'+p.id+'"'+(p.id===pid?' selected':'')+'>'+esc(personLabel(p))+'</option>'}).join('')||'<option value="">Cadastre um contribuinte</option>';
   var accs=pid?cashAccounts(pid):[];
   document.getElementById('c-accounts').innerHTML=accs.map(function(a){return'<option value="'+esc(a)+'">'}).join('');
   var dateInp=document.getElementById('c-date');if(!dateInp.value)dateInp.value=iso(new Date());
@@ -890,16 +896,6 @@ function renderCash(){
       '<td><button type="button" class="ghost" data-cash-check="'+esc(b.account)+'">Conferir saldo</button></td></tr>';
   }).join(''):'<tr><td colspan="7" class="small" style="text-align:center;padding:18px">Nenhuma conta vinculada a este CPF. Digite o número da conta acima para começar.</td></tr>';
 
-  var total=pid?personCashTotal(pid):null,today=iso(new Date());
-  var mStart=today.slice(0,7)+'-01',yStart=today.slice(0,4)+'-01-01';
-  var rm=pid?cashReturn(pid,mStart,today):null,ry=pid?cashReturn(pid,yStart,today):null;
-  function box(k,v,cl,s){return'<div class="stat"><div class="k">'+k+'</div><div class="v '+(cl||'')+'">'+v+'</div><div class="s">'+s+'</div></div>'}
-  document.getElementById('cash-stats').innerHTML=
-    box('Saldo estimado total',total==null?'—':brl(total),'',total==null?'informe o saldo de pelo menos uma conta':'soma das contas do CPF')+
-    box('Resultado no mês',rm?brl(rm.result):'—',rm&&rm.result<0?'neg':'pos',rm?pctBR(rm.pct)+' sobre '+(rm.capital?brl(rm.capital):'capital não informado'):'')+
-    box('Resultado no ano',ry?brl(ry.result):'—',ry&&ry.result<0?'neg':'pos',ry?pctBR(ry.pct)+' sobre '+(ry.capital?brl(ry.capital):'capital não informado'):'')+
-    box('Aportes líquidos no ano',ry?brl(ry.deposits-ry.withdrawals):'—','',ry?'depósitos '+brl(ry.deposits)+' • retiradas '+brl(ry.withdrawals):'');
-
   var moves=(st.cashMoves||[]).filter(function(m){return m.personId===pid}).sort(function(a,b){return b.date.localeCompare(a.date)});
   document.getElementById('cash-moves-title').textContent='Movimentos registrados ('+moves.length+')';
   document.getElementById('cash-moves').innerHTML=moves.length?moves.map(function(m){
@@ -909,13 +905,28 @@ function renderCash(){
   }).join(''):'<tr><td colspan="6" class="small" style="text-align:center;padding:14px">Nenhum movimento.</td></tr>';
   updateCashSuggestion();
 }
+// Resumo (somente leitura) na tela principal, para o CPF ativo.
+function renderCashSummary(){
+  var el=document.getElementById('cash-stats');if(!el)return;
+  var pid=st.active;
+  var total=pid?personCashTotal(pid):null,today=iso(new Date());
+  var mStart=today.slice(0,7)+'-01',yStart=today.slice(0,4)+'-01-01';
+  var rm=pid?cashReturn(pid,mStart,today):null,ry=pid?cashReturn(pid,yStart,today):null;
+  function box(k,v,cl,s){return'<div class="stat"><div class="k">'+k+'</div><div class="v '+(cl||'')+'">'+v+'</div><div class="s">'+s+'</div></div>'}
+  el.innerHTML=
+    box('Saldo estimado total',total==null?'—':brl(total),'',total==null?'informe o saldo de pelo menos uma conta':'soma das contas do CPF')+
+    box('Resultado no mês',rm?brl(rm.result):'—',rm&&rm.result<0?'neg':'pos',rm?pctBR(rm.pct)+' sobre '+(rm.capital?brl(rm.capital):'capital não informado'):'')+
+    box('Resultado no ano',ry?brl(ry.result):'—',ry&&ry.result<0?'neg':'pos',ry?pctBR(ry.pct)+' sobre '+(ry.capital?brl(ry.capital):'capital não informado'):'')+
+    box('Aportes líquidos no ano',ry?brl(ry.deposits-ry.withdrawals):'—','',ry?'depósitos '+brl(ry.deposits)+' • retiradas '+brl(ry.withdrawals):'');
+}
 // Sugestão: em "Saldo conferido", preenche o saldo que o app estima para a
 // conta/data e mostra a diferença quando o usuário digita o valor do extrato.
 function updateCashSuggestion(){
   var hint=document.getElementById('cash-hint'),amt=document.getElementById('c-amount');
   var acc=digits(document.getElementById('c-account').value),date=document.getElementById('c-date').value,type=document.getElementById('c-type').value;
-  if(type!=='saldo'||!acc||!date||!st.active){hint.textContent='';return}
-  var b=accountBalance(st.active,acc,date);
+  var pid=cashPerson();
+  if(type!=='saldo'||!acc||!date||!pid){hint.textContent='';return}
+  var b=accountBalance(pid,acc,date);
   if(!b.known){hint.textContent='Primeiro saldo desta conta: informe o valor do extrato ao final de '+datebr(date)+'.';return}
   if(amt.value===''||(cashAutoValue!==null&&+amt.value===cashAutoValue)){
     amt.value=b.balance.toFixed(2);cashAutoValue=+amt.value;
@@ -931,18 +942,19 @@ document.getElementById('c-amount').addEventListener('input',function(){
 });
 document.getElementById('cash-form').addEventListener('submit',function(ev){
   ev.preventDefault();
-  if(!st.active){alert('Cadastre e selecione um contribuinte primeiro.');return}
+  var pid=cashPerson();
+  if(!pid){alert('Cadastre um contribuinte primeiro.');return}
   var acc=digits(document.getElementById('c-account').value),amount=round2(+document.getElementById('c-amount').value);
-  var m={id:id(),personId:st.active,account:acc,date:document.getElementById('c-date').value,
+  var m={id:id(),personId:pid,account:acc,date:document.getElementById('c-date').value,
     type:document.getElementById('c-type').value,amount:amount,note:document.getElementById('c-note').value.trim()};
   if(!acc||!m.date||isNaN(amount)||amount<0){alert('Informe conta, data e valor.');return}
   if(!st.cashMoves)st.cashMoves=[];
   st.cashMoves.push(m);
-  link(st.active,acc);
+  link(pid,acc);
   document.getElementById('c-amount').value='';document.getElementById('c-note').value='';cashAutoValue=null;
   save();render();
 });
-document.getElementById('cash-card').addEventListener('click',function(ev){
+document.getElementById('cash-manage').addEventListener('click',function(ev){
   var ck=ev.target.closest('[data-cash-check]'),del=ev.target.closest('[data-cash-del]');
   if(ck){
     document.getElementById('c-account').value=ck.getAttribute('data-cash-check');
@@ -958,4 +970,14 @@ document.getElementById('cash-card').addEventListener('click',function(ev){
     st.cashMoves=st.cashMoves.filter(function(x){return x.id!==mid});
     save();render();
   }
+});
+document.getElementById('cash-person').addEventListener('change',function(){
+  cashPid=this.value;document.getElementById('c-account').value='';document.getElementById('c-amount').value='';cashAutoValue=null;renderCash();
+});
+// Botão da tela principal: abre o Cadastrar / Gerenciar já na seção de saldo do CPF ativo.
+document.getElementById('cash-open').addEventListener('click',function(){
+  cashPid=st.active;openPeopleModal();renderCash();
+  document.getElementById('cash-manage').scrollIntoView({block:'start'});
+  var a=document.getElementById('c-account');if(!a.value&&cashAccounts(cashPid).length===1)a.value=cashAccounts(cashPid)[0];
+  updateCashSuggestion();a.focus();
 });

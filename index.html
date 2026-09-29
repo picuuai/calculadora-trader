@@ -83,6 +83,26 @@
           <tbody id="people-body"></tbody>
         </table>
       </div>
+      <div id="cash-manage" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+          <div><h2 style="margin:0;font-size:17px">Saldo em conta</h2>
+          <div class="small" style="margin-top:3px;max-width:62ch">Informe uma vez o saldo do extrato (<strong>Saldo conferido</strong>, ao final do dia) e registre depósitos e retiradas. O app soma o líquido de cada nota e sugere o saldo atual. O DARF é pago pelo banco e não altera o saldo.</div></div>
+          <div class="field" style="flex:0 1 320px"><label>Contribuinte</label><select id="cash-person"></select></div>
+        </div>
+        <form id="cash-form" class="row">
+          <div class="field"><label>Conta</label><input id="c-account" list="c-accounts" inputmode="numeric" placeholder="nº da conta" required><datalist id="c-accounts"></datalist></div>
+          <div class="field"><label>Data</label><input id="c-date" type="date" required></div>
+          <div class="field"><label>Tipo</label><select id="c-type"><option value="saldo">Saldo conferido</option><option value="deposito">Depósito</option><option value="retirada">Retirada</option></select></div>
+          <div class="field"><label>Valor (R$)</label><input id="c-amount" type="number" step="0.01" min="0" required></div>
+          <div class="field" style="flex:1.4"><label>Observação</label><input id="c-note" placeholder="opcional"></div>
+          <button class="primary" id="cash-btn">Registrar</button>
+        </form>
+        <div id="cash-hint" class="small" style="margin:8px 0 12px;min-height:1.4em"></div>
+        <div class="scroll"><table><thead><tr><th>Conta</th><th>Saldo conferido</th><th class="num">Notas desde então</th><th class="num">Depósitos</th><th class="num">Retiradas</th><th class="num">Saldo estimado</th><th></th></tr></thead><tbody id="cash-body"></tbody></table></div>
+        <details style="margin-top:12px"><summary class="small" id="cash-moves-title" style="cursor:pointer">Movimentos registrados</summary>
+          <div class="scroll" style="margin-top:8px"><table style="min-width:620px"><thead><tr><th>Data</th><th>Conta</th><th>Tipo</th><th class="num">Valor</th><th>Observação</th><th></th></tr></thead><tbody id="cash-moves"></tbody></table></div>
+        </details>
+      </div>
     </div>
   </div>
 </div>
@@ -114,22 +134,11 @@
 <div class="stats" id="stats"></div>
 
 <section class="card" id="cash-card">
-  <h2>Saldo em conta</h2>
-  <p class="desc">Financeiro real de cada conta/corretora do CPF ativo. Informe uma vez o saldo do extrato (<strong>Saldo conferido</strong>, ao final do dia) e registre depósitos e retiradas — o app soma o valor líquido de cada nota a partir dali e sugere o saldo atual. O DARF é pago pelo banco e não altera o saldo. Nada aqui interfere na apuração do imposto.</p>
-  <div class="stats" id="cash-stats" style="margin-bottom:14px"></div>
-  <form id="cash-form" class="row">
-    <div class="field"><label>Conta</label><input id="c-account" list="c-accounts" inputmode="numeric" placeholder="nº da conta" required><datalist id="c-accounts"></datalist></div>
-    <div class="field"><label>Data</label><input id="c-date" type="date" required></div>
-    <div class="field"><label>Tipo</label><select id="c-type"><option value="saldo">Saldo conferido</option><option value="deposito">Depósito</option><option value="retirada">Retirada</option></select></div>
-    <div class="field"><label>Valor (R$)</label><input id="c-amount" type="number" step="0.01" min="0" required></div>
-    <div class="field" style="flex:1.4"><label>Observação</label><input id="c-note" placeholder="opcional"></div>
-    <button class="primary" id="cash-btn">Registrar</button>
-  </form>
-  <div id="cash-hint" class="small" style="margin:8px 0 12px;min-height:1.4em"></div>
-  <div class="scroll"><table><thead><tr><th>Conta</th><th>Saldo conferido</th><th class="num">Notas desde então</th><th class="num">Depósitos</th><th class="num">Retiradas</th><th class="num">Saldo estimado</th><th></th></tr></thead><tbody id="cash-body"></tbody></table></div>
-  <details style="margin-top:12px"><summary class="small" id="cash-moves-title" style="cursor:pointer">Movimentos registrados</summary>
-    <div class="scroll" style="margin-top:8px"><table style="min-width:620px"><thead><tr><th>Data</th><th>Conta</th><th>Tipo</th><th class="num">Valor</th><th>Observação</th><th></th></tr></thead><tbody id="cash-moves"></tbody></table></div>
-  </details>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div><h2>Saldo em conta</h2><p class="desc">Financeiro real das contas do CPF ativo (não interfere no imposto). O saldo é cadastrado em <strong>Cadastrar / Gerenciar</strong>.</p></div>
+    <button type="button" class="ghost" id="cash-open">Gerenciar saldo</button>
+  </div>
+  <div class="stats" id="cash-stats" style="margin-bottom:0"></div>
 </section>
 
 <section class="card">
