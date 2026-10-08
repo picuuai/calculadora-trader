@@ -196,19 +196,19 @@ function cpfBelowCell(rows,labelRegex,opts){
   return f?digits(f.raw):'';
 }
 function nameBelowClientCell(rows){
-  var loc=locateLabel(rows,/^Cliente$/i);
-  if(!loc)return '';
-  for(var ri=loc.row+1;ri<=Math.min(rows.length-1,loc.row+4);ri++){
-    var words=(rows[ri].items||[]).filter(function(it){
+  // O rótulo "Cliente" divide a linha com outros rótulos (C.N.P.J/C.P.F), e o
+  // nome pode vir num único trecho de texto ou em uma palavra por trecho.
+  var row=-1;
+  for(var i=0;i<rows.length&&row<0;i++){
+    if((rows[i].items||[]).some(function(it){return /^Cliente$/i.test(String(it.s||'').trim())}))row=i;
+  }
+  if(row<0)return '';
+  for(var ri=row+1;ri<=Math.min(rows.length-1,row+4);ri++){
+    var name=(rows[ri].items||[]).filter(function(it){
       var cx=itemCenter(it);
-      var t=String(it.s||'').trim();
-      return cx>=105&&cx<=330 &&
-             /^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]+$/.test(t) &&
-             !/\d/.test(t);
-    }).map(function(it){return String(it.s).trim()});
-    if(words.length>=2){
-      return words.join(' ').replace(/\s+/g,' ').trim();
-    }
+      return cx>=105&&cx<=330 && /^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ\s]+$/.test(String(it.s||'').trim());
+    }).map(function(it){return String(it.s).trim()}).join(' ').replace(/\s+/g,' ').trim();
+    if(name.split(' ').length>=2)return name;
   }
   return '';
 }
@@ -310,8 +310,9 @@ function extractIdentity(lines,full){
 
   for(var i=0;i<lines.length;i++){
     if(/^Conta:\s*\d+/i.test(lines[i])&&i>0){
-      var prev=lines[i-1].trim();
-      if(prev&&!/P[aá]gina|COMPROVANTE|Data de refer/i.test(prev)){
+      // O nome divide a linha com os rótulos "Data de referência  Comprovante".
+      var prev=lines[i-1].replace(/\s*Data de refer[êe]ncia.*$/i,'').trim();
+      if(prev&&!/P[aá]gina|COMPROVANTE/i.test(prev)){
         out.name=prev.replace(/\s+/g,' ').trim();
         break;
       }
@@ -379,17 +380,18 @@ function normalizeDayTradeNote(r){
   if(r.irrf==null)r.irrf=0;
   r.tributos=-Math.abs(r.irrf);
 
-  // Conferências sem alterar os valores.
-  if(r.totalLiquidoFiscal!=null && r.result!=null &&
-     Math.abs(Number(r.totalLiquidoFiscal)-Number(r.result))>0.02){
-    r.warnings.push('Conferência: Total líquido (#) difere do resultado tributável calculado.');
-  }
-
+  // Conferências sem alterar os valores. A referência é o líquido da nota;
+  // o "Total líquido (#)" só é usado quando ele não foi lido, porque em nota
+  // com WIN e WDO no mesmo pregão esse campo não bate com ajuste + despesas
+  // (nota 874005 de 06/10/2026: 189,50 contra 295,86).
   if(r.liquidoNota!=null && r.result!=null){
     var expected=Math.round((Number(r.result)-Math.abs(Number(r.irrf||0)))*100)/100;
     if(Math.abs(expected-Number(r.liquidoNota))>0.02){
       r.warnings.push('Conferência: resultado tributável menos IRRF difere do líquido da nota.');
     }
+  }else if(r.totalLiquidoFiscal!=null && r.result!=null &&
+     Math.abs(Number(r.totalLiquidoFiscal)-Number(r.result))>0.02){
+    r.warnings.push('Conferência: Total líquido (#) difere do resultado tributável calculado.');
   }
   return r;
 }

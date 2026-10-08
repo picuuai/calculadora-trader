@@ -115,6 +115,25 @@ test('nota de day trade: resultado = bruto + custos; IRRF separado',function(){
   var r=normalizeDayTradeNote({bruto:35,custos:-6.62,irrf:-0.28,liquidoNota:28.1,warnings:[]});
   eq([r.result,r.irrf,r.tributos,r.warnings.length],[28.38,0.28,-0.28,0]);
 });
+test('nota com WIN e WDO: Total líquido (#) diferente não gera aviso se o líquido da nota fecha',function(){
+  var r=normalizeDayTradeNote({bruto:-287,custos:-8.86,irrf:0,liquidoNota:-295.86,totalLiquidoFiscal:-189.5,warnings:[]});
+  eq([r.result,r.warnings.length],[-295.86,0]);
+  r=normalizeDayTradeNote({bruto:-287,custos:-8.86,irrf:0,totalLiquidoFiscal:-189.5,warnings:[]});
+  eq(r.warnings.length,1,'sem líquido da nota, o (#) ainda confere');
+});
+test('nota Santander: nome do cliente num único trecho, rótulo dividindo a linha',function(){
+  var rows=rebuildRows([
+    {x:62,y:727,w:14,s:'Cliente'},{x:428,y:727,w:26,s:'C.N.P.J/C.P.F'},
+    {x:127,y:718,w:91,s:'FULANO DE TAL SILVA'},{x:440,y:718,w:35,s:'529.982.247-25'},
+    {x:127,y:709,w:78,s:'RUA DAS FLORES, 10'}
+  ]);
+  eq(nameBelowClientCell(rows),'FULANO DE TAL SILVA');
+});
+test('comprovante Santander: nome do titular sem os rótulos da mesma linha',function(){
+  var lines=['FULANO DE TAL SILVA Data de referência Comprovante','Conta: 123456 07/10/2026 883736'];
+  var id=extractIdentity(lines,lines.join('\n'));
+  eq([id.name,id.account],['FULANO DE TAL SILVA','123456']);
+});
 test('nota: custos positivos são tratados como despesa',function(){
   eq(normalizeDayTradeNote({bruto:100,custos:5,irrf:0,warnings:[]}).result,95);
 });
