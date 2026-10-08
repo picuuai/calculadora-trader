@@ -777,12 +777,23 @@ document.getElementById('stage-commit').onclick=function(){
   document.getElementById('pdf-status').textContent=msg;
 };
 
-document.getElementById('entry-form').addEventListener('submit',function(ev){ev.preventDefault();var x={personId:document.getElementById('f-person').value,date:document.getElementById('f-date').value,cat:document.getElementById('f-cat').value,result:+document.getElementById('f-result').value,irrf:+document.getElementById('f-irrf').value||0,account:document.getElementById('f-account').value.trim(),ref:document.getElementById('f-ref').value.trim(),origin:'manual',bruto:null,custos:null,tributos:null,liquidoNota:null};if(!x.personId||!x.date||isNaN(x.result)){return}if(!ensureMonthOpen(x.personId,x.date,editing?'editar este lançamento':'adicionar este lançamento'))return;if(duplicate(x,editing)){document.getElementById('entry-msg').textContent='Possível duplicidade. Altere a referência/valores ou exclua o lançamento existente.';return}if(editing){var oldEntry=st.entries.find(function(e){return e.id===editing});if(oldEntry&&!ensureMonthOpen(oldEntry.personId,oldEntry.date,'editar este lançamento'))return;if(oldEntry){/* preserva origem e detalhamento extraído do PDF */['origin','bruto','custos','tributos','liquidoNota','cpfNota','layoutNota'].forEach(function(k){if(oldEntry[k]!==undefined)x[k]=oldEntry[k]})}var i=st.entries.findIndex(function(e){return e.id===editing});x.id=editing;if(i>=0)st.entries[i]=x;editing=null;document.getElementById('entry-btn').textContent='Adicionar'}else{x.id=id();st.entries.push(x)}var m=x.account.match(/\d{4,}/);if(m)link(x.personId,m[0]);this.reset();document.getElementById('f-person').value=st.active||x.personId;document.getElementById('entry-msg').textContent='';save();render()});
+document.getElementById('entry-form').addEventListener('submit',function(ev){ev.preventDefault();var x={personId:document.getElementById('f-person').value,date:document.getElementById('f-date').value,cat:document.getElementById('f-cat').value,result:+document.getElementById('f-result').value,irrf:+document.getElementById('f-irrf').value||0,account:document.getElementById('f-account').value.trim(),ref:document.getElementById('f-ref').value.trim(),origin:'manual',bruto:null,custos:null,tributos:null,liquidoNota:null};if(!x.personId||!x.date||isNaN(x.result)){return}if(!ensureMonthOpen(x.personId,x.date,editing?'editar este lançamento':'adicionar este lançamento'))return;if(duplicate(x,editing)){document.getElementById('entry-msg').textContent='Possível duplicidade. Altere a referência/valores ou exclua o lançamento existente.';return}if(editing){var oldEntry=st.entries.find(function(e){return e.id===editing});if(oldEntry&&!ensureMonthOpen(oldEntry.personId,oldEntry.date,'editar este lançamento'))return;if(oldEntry){/* preserva origem e detalhamento extraído do PDF */['origin','bruto','custos','tributos','liquidoNota','cpfNota','layoutNota'].forEach(function(k){if(oldEntry[k]!==undefined)x[k]=oldEntry[k]});/* resultado/IRRF corrigidos à mão: o detalhamento acompanha, senão o saldo em conta continuaria usando o líquido antigo */if(Math.abs((+oldEntry.result||0)-x.result)>.005||Math.abs((+oldEntry.irrf||0)-x.irrf)>.005){if(x.bruto!=null)x.custos=round2(x.result-x.bruto);if(x.liquidoNota!=null)x.liquidoNota=round2(x.result-x.irrf);if(x.tributos!=null)x.tributos=-Math.abs(x.irrf)}}var i=st.entries.findIndex(function(e){return e.id===editing});x.id=editing;if(i>=0)st.entries[i]=x;else st.entries.push(x);editing=null;document.getElementById('entry-btn').textContent='Adicionar';document.getElementById('entry-cancel').style.display='none'}else{x.id=id();st.entries.push(x)}var m=x.account.match(/\d{4,}/);if(m)link(x.personId,m[0]);this.reset();document.getElementById('f-person').value=st.active||x.personId;document.getElementById('entry-msg').textContent='';save();render()});
+// Sai do modo de edição sem alterar o lançamento.
+function cancelEdit(){
+  editing=null;
+  document.getElementById('entry-form').reset();
+  document.getElementById('f-person').value=st.active;
+  document.getElementById('entry-btn').textContent='Adicionar';
+  document.getElementById('entry-cancel').style.display='none';
+  document.getElementById('entry-msg').textContent='';
+}
+document.getElementById('entry-cancel').addEventListener('click',cancelEdit);
 document.getElementById('history').addEventListener('click',function(ev){
   var de=ev.target.closest('[data-del]'),ed=ev.target.closest('[data-edit]');
   if(de){
     var d=st.entries.find(function(e){return e.id===de.dataset.del});if(!d)return;
     if(!ensureMonthOpen(d.personId,d.date,'excluir este lançamento'))return;
+    if(editing===d.id)cancelEdit();
     st.entries=st.entries.filter(function(e){return e.id!==de.dataset.del});save();render();
   }
   if(ed){
@@ -791,6 +802,7 @@ document.getElementById('history').addEventListener('click',function(ev){
     editing=e.id;document.getElementById('f-person').value=e.personId;document.getElementById('f-date').value=e.date;
     document.getElementById('f-cat').value=e.cat;document.getElementById('f-result').value=e.result;document.getElementById('f-irrf').value=e.irrf||'';
     document.getElementById('f-account').value=e.account||'';document.getElementById('f-ref').value=e.ref||'';document.getElementById('entry-btn').textContent='Salvar alteração';
+    document.getElementById('entry-cancel').style.display='';
     document.getElementById('entry-form').scrollIntoView({behavior:'smooth',block:'center'});
   }
 });
@@ -918,7 +930,46 @@ function renderCashSummary(){
     box('Resultado no mês',rm?brl(rm.result):'—',rm&&rm.result<0?'neg':'pos',rm?pctBR(rm.pct)+' sobre '+(rm.capital?brl(rm.capital):'capital não informado'):'')+
     box('Resultado no ano',ry?brl(ry.result):'—',ry&&ry.result<0?'neg':'pos',ry?pctBR(ry.pct)+' sobre '+(ry.capital?brl(ry.capital):'capital não informado'):'')+
     box('Aportes líquidos no ano',ry?brl(ry.deposits-ry.withdrawals):'—','',ry?'depósitos '+brl(ry.deposits)+' • retiradas '+brl(ry.withdrawals):'');
+  renderCashStatement();
 }
+// Extrato do mês por conta, para o CPF ativo: de onde saiu o saldo final.
+function renderCashStatement(){
+  var sel=document.getElementById('cash-month'),body=document.getElementById('cash-statement'),hint=document.getElementById('cash-statement-hint');
+  if(!sel||!body)return;
+  var pid=st.active,cur=sel.value,now=iso(new Date()).slice(0,7),months=[now];
+  var add=function(d){var m=String(d||'').slice(0,7);if(m&&months.indexOf(m)<0)months.push(m)};
+  if(pid){activeEntries().forEach(function(e){add(e.date)});cashMovesOf(pid).forEach(function(m){add(m.date)})}
+  months.sort().reverse();
+  sel.innerHTML=months.map(function(m){return'<option value="'+m+'">'+ymlabel(m)+'</option>'}).join('');
+  sel.value=months.indexOf(cur)>=0?cur:now;
+  var rows=pid?cashAccounts(pid).map(function(a){return accountStatement(pid,a,sel.value)}):[];
+  if(!rows.length){
+    body.innerHTML='<tr><td colspan="9" class="small" style="text-align:center;padding:18px">Nenhuma conta vinculada a este CPF.</td></tr>';
+    hint.textContent='';return;
+  }
+  var sign=function(v){return v<0?'neg':(v>0?'pos':'')};
+  var cell=function(v,cl){return'<td class="num '+(cl||'')+'">'+(v?brl(v):'—')+'</td>'};
+  var line=function(label,s,strong){
+    return'<tr'+(strong?' style="font-weight:600"':'')+'><td>'+label+'</td>'+
+      '<td class="num">'+(s.known?brl(s.opening)+(s.openingDate?' <span class="small">conferido em '+datebr(s.openingDate)+'</span>':''):'<span class="small">não informado</span>')+'</td>'+
+      cell(s.bruto,sign(s.bruto))+cell(s.custos,sign(s.custos))+cell(s.irrf,sign(s.irrf))+
+      cell(s.deposits)+cell(-s.withdrawals,sign(-s.withdrawals))+cell(s.adjust,sign(s.adjust))+
+      '<td class="num"><strong>'+(s.known?brl(s.closing):'—')+'</strong></td></tr>';
+  };
+  var html=rows.map(function(s){return line('Conta '+esc(s.account),s)}).join('');
+  if(rows.length>1){
+    var t={known:rows.some(function(s){return s.known}),openingDate:''};
+    ['opening','bruto','custos','irrf','deposits','withdrawals','adjust','closing'].forEach(function(k){
+      t[k]=round2(rows.reduce(function(a,s){return a+(k==='opening'||k==='closing'?(s.known?s[k]:0):s[k])},0));
+    });
+    html+=line('Total',t,true);
+  }
+  body.innerHTML=html;
+  hint.textContent=rows.some(function(s){return Math.abs(s.adjust)>=0.01})
+    ?'Ajuste do extrato: diferença entre o saldo que você conferiu no mês e o que as notas e movimentos davam. Se foi depósito ou retirada, registre em “Gerenciar saldo” para o ajuste zerar.'
+    :(rows.some(function(s){return!s.known})?'Informe o saldo do extrato em “Gerenciar saldo” para o app calcular o saldo final.':'');
+}
+document.getElementById('cash-month').addEventListener('change',renderCashStatement);
 // Sugestão: em "Saldo conferido", preenche o saldo que o app estima para a
 // conta/data e mostra a diferença quando o usuário digita o valor do extrato.
 function updateCashSuggestion(){

@@ -212,6 +212,28 @@ test('rentabilidade: primeiro saldo dentro do período vira capital inicial',fun
   eq([r.capital,r.result,r.deposits],[1500,89,500]);
 });
 
+test('extrato do mês: primeiro saldo conferido no mês vira saldo inicial',function(){
+  cashState();
+  var s=accountStatement('p1','111','2026-09');
+  // parte de 1000 (01/09); n1 = 100 bruto − 1 IRRF; n2 = −40; depósito 500; retirada 200
+  eq([s.known,s.opening,s.openingDate,s.bruto,s.custos,s.irrf,s.deposits,s.withdrawals,s.adjust,s.closing],
+     [true,1000,'2026-09-01',60,0,-1,500,200,0,1359]);
+});
+test('extrato do mês: saldo anterior e ajuste quando o extrato diverge',function(){
+  cashState();
+  st.cashMoves=st.cashMoves.filter(function(m){return m.id!=='m4'});
+  st.cashMoves.push({id:'m0',personId:'p1',account:'111',date:'2026-08-01',type:'saldo',amount:600});
+  var s=accountStatement('p1','111','2026-09');
+  // saldo em 31/08 = 600 + 495 = 1095; conferido 1000 em 01/09 → ajuste −95
+  eq([s.opening,s.openingDate,s.bruto,s.irrf,s.deposits,s.withdrawals,s.adjust,s.closing],[1095,'',60,-1,500,200,-95,1359]);
+  eq(accountStatement('p1','111','2026-08').closing,1095,'ago fecha no saldo anterior de set');
+});
+test('extrato do mês: conta sem saldo informado',function(){
+  cashState();
+  var s=accountStatement('p1','222','2026-09');
+  eq([s.known,s.bruto,s.adjust],[false,30,0]);
+});
+
 // ---------- Resultado ----------
 var fail=results.filter(function(r){return!r.ok});
 document.getElementById('summary').innerHTML=fail.length

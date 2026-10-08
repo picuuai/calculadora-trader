@@ -86,6 +86,43 @@ function cashReturn(pid,start,end){
     pct:(known&&capital>0)?result/capital:null};
 }
 
+// Extrato do mês (AAAA-MM) de uma conta:
+//   saldo anterior + bruto das notas − despesas − IRRF + depósitos − retiradas
+//   (+ ajuste do extrato) = saldo final.
+// Saldo anterior = saldo ao final do mês anterior. Conta cujo primeiro saldo
+// conferido está DENTRO do mês: ele vira o saldo inicial e só conta o que veio depois.
+// Ajuste do extrato = diferença entre os saldos conferidos no mês e o que as
+// notas/movimentos davam (depósito ou retirada não registrados, tarifas, etc.).
+// bruto/custos/irrf vêm com sinal (despesas e IRRF negativos), então a soma fecha.
+function accountStatement(pid,acc,month){
+  var p=month.split('-'),start=month+'-01',end=iso(new Date(+p[0],+p[1],0));
+  var b0=accountBalance(pid,acc,lastDayBefore(start)),known=b0.known,opening=known?b0.balance:0,from='';
+  if(!known){
+    var first=cashMovesOf(pid).filter(function(m){return m.account===acc&&m.type==='saldo'&&m.date>=start&&m.date<=end})
+      .sort(function(x,y){return x.date.localeCompare(y.date)})[0];
+    if(first){opening=+first.amount||0;from=first.date;known=true}
+  }
+  var inRange=function(d){return d>=start&&d<=end&&d>from};
+  var bruto=0,custos=0,irrf=0,deposits=0,withdrawals=0,notes=0;
+  st.entries.forEach(function(e){
+    if(e.personId!==pid||entryAccountDigits(e)!==acc||!inRange(e.date))return;
+    // Sem detalhamento (lançamento manual): o resultado entra como bruto.
+    var b=e.bruto!=null?+e.bruto||0:+e.result||0,c=e.custos!=null?+e.custos||0:0;
+    bruto+=b;custos+=c;irrf+=entryCash(e)-b-c;notes++;
+  });
+  cashMovesOf(pid).forEach(function(m){
+    if(m.account!==acc||!inRange(m.date))return;
+    if(m.type==='deposito')deposits+=+m.amount||0;
+    else if(m.type==='retirada')withdrawals+=+m.amount||0;
+  });
+  var computed=round2(opening+bruto+custos+irrf+deposits-withdrawals);
+  var closing=known?accountBalance(pid,acc,end).balance:computed;
+  return{account:acc,month:month,known:known,opening:round2(opening),openingDate:from,
+    bruto:round2(bruto),custos:round2(custos),irrf:round2(irrf),notes:notes,
+    deposits:round2(deposits),withdrawals:round2(withdrawals),
+    adjust:round2(closing-computed),closing:closing};
+}
+
 function personCashTotal(pid){
   var total=0,known=false;
   cashAccounts(pid).forEach(function(a){var b=accountBalance(pid,a);if(b.known){total+=b.balance;known=true}});
