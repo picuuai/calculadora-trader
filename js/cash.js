@@ -1,7 +1,8 @@
 // Saldo em conta por corretora/conta (financeiro real), separado da apuração fiscal.
 //
 // Movimentos (st.cashMoves): {id, personId, account (dígitos), date, type, amount, note}
-//   type 'saldo'    → saldo conferido no extrato AO FINAL do dia `date` (ponto de partida)
+//   type 'saldo'    → saldo conferido no extrato AO FINAL do dia `date` (ponto de partida);
+//                     com before:true, saldo lido ANTES do pregão de `date` (sem a nota do dia)
 //   type 'deposito' → dinheiro que entrou na corretora
 //   type 'retirada' → dinheiro que saiu da corretora
 // Saldo estimado = último saldo conferido + resultados financeiros das notas
@@ -29,20 +30,24 @@ function cashAccounts(pid){
   return out.sort();
 }
 
+// A data `d` conta a partir do saldo conferido `ck`? Saldo de fim do dia já
+// inclui a nota daquele dia; saldo lido ANTES do pregão (ck.before) ainda não —
+// a corretora liquida o day trade no dia útil seguinte.
+function afterCheckpoint(ck,d){return!ck||(ck.before?d>=ck.date:d>ck.date)}
+
 // Saldo de uma conta ao final do dia asOf (AAAA-MM-DD; padrão: hoje).
 function accountBalance(pid,acc,asOf){
   asOf=asOf||iso(new Date());
   var moves=cashMovesOf(pid).filter(function(m){return m.account===acc&&m.date<=asOf});
-  var cks=moves.filter(function(m){return m.type==='saldo'}).sort(function(a,b){return a.date.localeCompare(b.date)||String(a.id).localeCompare(String(b.id))});
+  var cks=moves.filter(function(m){return m.type==='saldo'}).sort(function(a,b){return a.date.localeCompare(b.date)||(a.before?0:1)-(b.before?0:1)||String(a.id).localeCompare(String(b.id))});
   var ck=cks[cks.length-1]||null;
-  var from=ck?ck.date:'';
   var results=0,deposits=0,withdrawals=0,notes=0;
   st.entries.forEach(function(e){
-    if(e.personId!==pid||entryAccountDigits(e)!==acc||e.date<=from||e.date>asOf)return;
+    if(e.personId!==pid||entryAccountDigits(e)!==acc||!afterCheckpoint(ck,e.date)||e.date>asOf)return;
     results+=entryCash(e);notes++;
   });
   moves.forEach(function(m){
-    if(m.date<=from)return;
+    if(!afterCheckpoint(ck,m.date))return;
     if(m.type==='deposito')deposits+=+m.amount||0;
     else if(m.type==='retirada')withdrawals+=+m.amount||0;
   });
@@ -70,9 +75,9 @@ function cashReturn(pid,start,end){
     if(b0.known){capital+=b0.balance;known=true;return}
     var ck=cashMovesOf(pid).filter(function(m){return m.account===a&&m.type==='saldo'&&m.date>=start&&m.date<=end})
       .sort(function(x,y){return x.date.localeCompare(y.date)})[0];
-    if(ck){capital+=+ck.amount||0;known=true;cutoff[a]=ck.date}
+    if(ck){capital+=+ck.amount||0;known=true;cutoff[a]=ck}
   });
-  var inRange=function(acc,date){return date>=start&&date<=end&&!(cutoff[acc]&&date<=cutoff[acc])};
+  var inRange=function(acc,date){return date>=start&&date<=end&&afterCheckpoint(cutoff[acc],date)};
   cashMovesOf(pid).forEach(function(m){
     if(!inRange(m.account,m.date))return;
     if(m.type==='deposito'){deposits+=+m.amount||0;known=true}
@@ -96,13 +101,13 @@ function cashReturn(pid,start,end){
 // bruto/custos/irrf vêm com sinal (despesas e IRRF negativos), então a soma fecha.
 function accountStatement(pid,acc,month){
   var p=month.split('-'),start=month+'-01',end=iso(new Date(+p[0],+p[1],0));
-  var b0=accountBalance(pid,acc,lastDayBefore(start)),known=b0.known,opening=known?b0.balance:0,from='';
+  var b0=accountBalance(pid,acc,lastDayBefore(start)),known=b0.known,opening=known?b0.balance:0,from='',first=null;
   if(!known){
-    var first=cashMovesOf(pid).filter(function(m){return m.account===acc&&m.type==='saldo'&&m.date>=start&&m.date<=end})
-      .sort(function(x,y){return x.date.localeCompare(y.date)})[0];
+    first=cashMovesOf(pid).filter(function(m){return m.account===acc&&m.type==='saldo'&&m.date>=start&&m.date<=end})
+      .sort(function(x,y){return x.date.localeCompare(y.date)})[0]||null;
     if(first){opening=+first.amount||0;from=first.date;known=true}
   }
-  var inRange=function(d){return d>=start&&d<=end&&d>from};
+  var inRange=function(d){return d>=start&&d<=end&&afterCheckpoint(first,d)};
   var bruto=0,custos=0,irrf=0,deposits=0,withdrawals=0,notes=0;
   st.entries.forEach(function(e){
     if(e.personId!==pid||entryAccountDigits(e)!==acc||!inRange(e.date))return;

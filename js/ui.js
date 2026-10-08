@@ -901,7 +901,7 @@ function renderCash(){
   body.innerHTML=balances.length?balances.map(function(b){
     var ck=b.checkpoint;
     return'<tr><td>Conta '+esc(b.account)+'</td>'+
-      '<td>'+(ck?brl(ck.amount)+' <span class="small">em '+datebr(ck.date)+'</span>':'<span class="small">não informado</span>')+'</td>'+
+      '<td>'+(ck?brl(ck.amount)+' <span class="small">'+(ck.before?'antes do pregão de ':'ao final de ')+datebr(ck.date)+'</span>':'<span class="small">não informado</span>')+'</td>'+
       '<td class="num '+(b.results<0?'neg':'pos')+'">'+brl(b.results)+' <span class="small">('+b.notes+')</span></td>'+
       '<td class="num">'+brl(b.deposits)+'</td><td class="num">'+brl(b.withdrawals)+'</td>'+
       '<td class="num"><strong>'+(b.known?brl(b.balance):'—')+'</strong></td>'+
@@ -911,7 +911,7 @@ function renderCash(){
   var moves=(st.cashMoves||[]).filter(function(m){return m.personId===pid}).sort(function(a,b){return b.date.localeCompare(a.date)});
   document.getElementById('cash-moves-title').textContent='Movimentos registrados ('+moves.length+')';
   document.getElementById('cash-moves').innerHTML=moves.length?moves.map(function(m){
-    return'<tr><td>'+datebr(m.date)+'</td><td>Conta '+esc(m.account)+'</td><td>'+esc(CASH_TYPES[m.type]||m.type)+'</td>'+
+    return'<tr><td>'+datebr(m.date)+'</td><td>Conta '+esc(m.account)+'</td><td>'+esc(CASH_TYPES[m.type]||m.type)+(m.type==='saldo'?' <span class="small">'+(m.before?'antes do pregão':'fim do dia')+'</span>':'')+'</td>'+
       '<td class="num '+(m.type==='retirada'?'neg':'')+'">'+brl(m.amount)+'</td><td>'+esc(m.note||'')+'</td>'+
       '<td><button type="button" class="danger" data-cash-del="'+esc(m.id)+'">Excluir</button></td></tr>';
   }).join(''):'<tr><td colspan="6" class="small" style="text-align:center;padding:14px">Nenhum movimento.</td></tr>';
@@ -975,18 +975,21 @@ document.getElementById('cash-month').addEventListener('change',renderCashStatem
 function updateCashSuggestion(){
   var hint=document.getElementById('cash-hint'),amt=document.getElementById('c-amount');
   var acc=digits(document.getElementById('c-account').value),date=document.getElementById('c-date').value,type=document.getElementById('c-type').value;
-  var pid=cashPerson();
+  var pid=cashPerson(),before=document.getElementById('c-when').value==='before';
+  document.getElementById('c-when-wrap').style.display=type==='saldo'?'':'none';
   if(type!=='saldo'||!acc||!date||!pid){hint.textContent='';return}
-  var b=accountBalance(pid,acc,date);
-  if(!b.known){hint.textContent='Primeiro saldo desta conta: informe o valor do extrato ao final de '+datebr(date)+'.';return}
+  // Antes do pregão: o saldo esperado é o do fim do dia anterior.
+  var quando=before?'antes do pregão de '+datebr(date):'ao final de '+datebr(date);
+  var b=accountBalance(pid,acc,before?lastDayBefore(date):date);
+  if(!b.known){hint.textContent='Primeiro saldo desta conta: informe o valor do extrato '+quando+'.';return}
   if(amt.value===''||(cashAutoValue!==null&&+amt.value===cashAutoValue)){
     amt.value=b.balance.toFixed(2);cashAutoValue=+amt.value;
   }
   var dif=round2((+amt.value||0)-b.balance);
-  hint.innerHTML='Sugestão do app para a conta '+esc(acc)+' ao final de '+datebr(date)+': <strong>'+brl(b.balance)+'</strong> — confira com o extrato e corrija se preciso.'+
+  hint.innerHTML='Sugestão do app para a conta '+esc(acc)+' '+quando+': <strong>'+brl(b.balance)+'</strong> — confira com o extrato e corrija se preciso.'+
     (Math.abs(dif)>=0.01?' <span class="'+(dif<0?'neg':'pos')+'">Diferença: '+brl(dif)+'</span> <span class="small">(tarifas, custódia ou rendimentos fora das notas)</span>':'');
 }
-['c-account','c-date','c-type'].forEach(function(i){document.getElementById(i).addEventListener('change',updateCashSuggestion)});
+['c-account','c-date','c-type','c-when'].forEach(function(i){document.getElementById(i).addEventListener('change',updateCashSuggestion)});
 document.getElementById('c-amount').addEventListener('input',function(){
   if(cashAutoValue!==null&&+this.value!==cashAutoValue)cashAutoValue=null;
   updateCashSuggestion();
@@ -998,6 +1001,7 @@ document.getElementById('cash-form').addEventListener('submit',function(ev){
   var acc=digits(document.getElementById('c-account').value),amount=round2(+document.getElementById('c-amount').value);
   var m={id:id(),personId:pid,account:acc,date:document.getElementById('c-date').value,
     type:document.getElementById('c-type').value,amount:amount,note:document.getElementById('c-note').value.trim()};
+  if(m.type==='saldo'&&document.getElementById('c-when').value==='before')m.before=true;
   if(!acc||!m.date||isNaN(amount)||amount<0){alert('Informe conta, data e valor.');return}
   if(!st.cashMoves)st.cashMoves=[];
   st.cashMoves.push(m);

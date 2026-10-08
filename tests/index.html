@@ -212,6 +212,15 @@ test('rentabilidade: primeiro saldo dentro do período vira capital inicial',fun
   eq([r.capital,r.result,r.deposits],[1500,89,500]);
 });
 
+test('saldo conferido antes do pregão não inclui a nota do dia',function(){
+  cashState();
+  st.cashMoves.push({id:'m8',personId:'p1',account:'111',date:'2026-09-05',type:'saldo',amount:1400,before:true});
+  // 1400 + nota de 05/09 (−40) − retirada de 06/09 (200)
+  eq(accountBalance('p1','111','2026-09-30').balance,1160);
+  // no mesmo dia, o saldo de fim do dia vale mais que o de antes do pregão
+  st.cashMoves.push({id:'m7',personId:'p1',account:'111',date:'2026-09-05',type:'saldo',amount:1350});
+  eq(accountBalance('p1','111','2026-09-30').balance,1150);
+});
 test('extrato do mês: primeiro saldo conferido no mês vira saldo inicial',function(){
   cashState();
   var s=accountStatement('p1','111','2026-09');
